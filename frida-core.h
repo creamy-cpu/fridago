@@ -1,18 +1,3 @@
-#pragma comment(lib, "frida-core.lib")
-
-#pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "dnsapi.lib")
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "kernel32.lib")
-#pragma comment(lib, "ole32.lib")
-#pragma comment(lib, "psapi.lib")
-#pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "winmm.lib")
-#pragma comment(lib, "ws2_32.lib")
-
 #ifndef __FRIDA_CORE_H__
 #define __FRIDA_CORE_H__
 
@@ -206,24 +191,22 @@
  * in a compatible way before this feature was supported in all
  * compilers.  These days, GLib requires inlining support from the
  * compiler, so your GLib-using programs can safely assume that the
- * "inline" keywork works properly.
+ * "inline" keyword works properly.
  *
  * Never use this macro anymore.  Just say "static inline".
  *
  * Deprecated: 2.48: Use "static inline" instead
  */
 
-#ifndef G_DISABLE_DEPRECATED
 /* For historical reasons we need to continue to support those who
  * define G_IMPLEMENT_INLINES to mean "don't implement this here".
  */
 #ifdef G_IMPLEMENT_INLINES
-#  define G_INLINE_FUNC extern
+#  define G_INLINE_FUNC extern GLIB_DEPRECATED_MACRO_IN_2_48_FOR(static inline)
 #  undef  G_CAN_INLINE
 #else
-#  define G_INLINE_FUNC static inline
+#  define G_INLINE_FUNC static inline GLIB_DEPRECATED_MACRO_IN_2_48_FOR(static inline)
 #endif /* G_IMPLEMENT_INLINES */
-#endif /* !G_DISABLE_DEPRECATED */
 
 /* Provide macros to feature the GCC function attribute.
  */
@@ -350,9 +333,11 @@
  *
  * This symbol is private.
  */
-#undef g_has_typeof
-#if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)) && !defined(__cplusplus)
-#define g_has_typeof
+#undef glib_typeof
+#if !defined(__cplusplus) && \
+     ((defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))) || \
+      defined(__clang__))
+#define glib_typeof(t) __typeof__ (t)
 #endif
 
 /*
@@ -540,6 +525,12 @@
  * It is used for declaring functions which never return. It enables
  * optimization of the function, and avoids possible compiler warnings.
  *
+ * Since 2.68, it is recommended that code uses %G_NORETURN instead of
+ * %G_GNUC_NORETURN, as that works on more platforms and compilers (in
+ * particular, MSVC and C++11) than %G_GNUC_NORETURN, which works with GCC and
+ * Clang only. %G_GNUC_NORETURN continues to work, so has not been deprecated
+ * yet.
+ *
  * Place the attribute after the declaration, just before the semicolon.
  *
  * |[<!-- language="C" -->
@@ -651,7 +642,7 @@
 /**
  * G_GNUC_FALLTHROUGH:
  *
- * Expands to the GNU C `fallthrough` statement attribute if the compiler is gcc.
+ * Expands to the GNU C `fallthrough` statement attribute if the compiler supports it.
  * This allows declaring case statement to explicitly fall through in switch
  * statements. To enable this feature, use `-Wimplicit-fallthrough` during
  * compilation.
@@ -678,6 +669,8 @@
  */
 #if    __GNUC__ > 6
 #define G_GNUC_FALLTHROUGH __attribute__((fallthrough))
+#elif g_macro__has_attribute (fallthrough)
+#define G_GNUC_FALLTHROUGH __attribute__((fallthrough))
 #else
 #define G_GNUC_FALLTHROUGH
 #endif /* __GNUC__ */
@@ -700,7 +693,7 @@
  *
  * Since: 2.2
  */
-#if    __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)
+#if    __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1) || defined (__clang__)
 #define G_GNUC_DEPRECATED __attribute__((__deprecated__))
 #else
 #define G_GNUC_DEPRECATED
@@ -729,7 +722,7 @@
  *
  * Since: 2.26
  */
-#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5) || defined (__clang__)
 #define G_GNUC_DEPRECATED_FOR(f)                        \
   __attribute__((deprecated("Use " #f " instead")))
 #else
@@ -748,7 +741,7 @@
   _Pragma ("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
 #define G_GNUC_END_IGNORE_DEPRECATIONS			\
   _Pragma ("GCC diagnostic pop")
-#elif defined (_MSC_VER) && (_MSC_VER >= 1500)
+#elif defined (_MSC_VER) && (_MSC_VER >= 1500) && !defined (__clang__)
 #define G_GNUC_BEGIN_IGNORE_DEPRECATIONS		\
   __pragma (warning (push))  \
   __pragma (warning (disable : 4996))
@@ -806,19 +799,38 @@
 #define G_GNUC_WARN_UNUSED_RESULT
 #endif /* __GNUC__ */
 
-#ifndef G_DISABLE_DEPRECATED
+/**
+ * G_GNUC_FUNCTION:
+ *
+ * Expands to "" on all modern compilers, and to  __FUNCTION__ on gcc
+ * version 2.x. Don't use it.
+ *
+ * Deprecated: 2.16: Use G_STRFUNC() instead
+ */
+
+/**
+ * G_GNUC_PRETTY_FUNCTION:
+ *
+ * Expands to "" on all modern compilers, and to __PRETTY_FUNCTION__
+ * on gcc version 2.x. Don't use it.
+ *
+ * Deprecated: 2.16: Use G_STRFUNC() instead
+ */
+
 /* Wrap the gcc __PRETTY_FUNCTION__ and __FUNCTION__ variables with
  * macros, so we can refer to them as strings unconditionally.
  * usage not-recommended since gcc-3.0
+ *
+ * Mark them as deprecated since 2.26, since that’s when version macros were
+ * introduced.
  */
 #if defined (__GNUC__) && (__GNUC__ < 3)
-#define G_GNUC_FUNCTION         __FUNCTION__
-#define G_GNUC_PRETTY_FUNCTION  __PRETTY_FUNCTION__
+#define G_GNUC_FUNCTION         __FUNCTION__ GLIB_DEPRECATED_MACRO_IN_2_26_FOR(G_STRFUNC)
+#define G_GNUC_PRETTY_FUNCTION  __PRETTY_FUNCTION__ GLIB_DEPRECATED_MACRO_IN_2_26_FOR(G_STRFUNC)
 #else   /* !__GNUC__ */
-#define G_GNUC_FUNCTION         ""
-#define G_GNUC_PRETTY_FUNCTION  ""
+#define G_GNUC_FUNCTION         "" GLIB_DEPRECATED_MACRO_IN_2_26_FOR(G_STRFUNC)
+#define G_GNUC_PRETTY_FUNCTION  "" GLIB_DEPRECATED_MACRO_IN_2_26_FOR(G_STRFUNC)
 #endif  /* !__GNUC__ */
-#endif  /* !G_DISABLE_DEPRECATED */
 
 #if g_macro__has_feature(attribute_analyzer_noreturn) && defined(__clang_analyzer__)
 #define G_ANALYZER_ANALYZING 1
@@ -834,13 +846,21 @@
 #ifndef __GI_SCANNER__ /* The static assert macro really confuses the introspection parser */
 #define G_PASTE_ARGS(identifier1,identifier2) identifier1 ## identifier2
 #define G_PASTE(identifier1,identifier2)      G_PASTE_ARGS (identifier1, identifier2)
+#if !defined(__cplusplus) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define G_STATIC_ASSERT(expr) _Static_assert (expr, "Expression evaluates to false")
+#elif (defined(__cplusplus) && __cplusplus >= 201103L) || \
+      (defined(__cplusplus) && defined (_MSC_VER) && (_MSC_VER >= 1600)) || \
+      (defined (_MSC_VER) && (_MSC_VER >= 1800))
+#define G_STATIC_ASSERT(expr) static_assert (expr, "Expression evaluates to false")
+#else
 #ifdef __COUNTER__
 #define G_STATIC_ASSERT(expr) typedef char G_PASTE (_GStaticAssertCompileTimeAssertion_, __COUNTER__)[(expr) ? 1 : -1] G_GNUC_UNUSED
 #else
 #define G_STATIC_ASSERT(expr) typedef char G_PASTE (_GStaticAssertCompileTimeAssertion_, __LINE__)[(expr) ? 1 : -1] G_GNUC_UNUSED
 #endif
+#endif /* __STDC_VERSION__ */
 #define G_STATIC_ASSERT_EXPR(expr) ((void) sizeof (char[(expr) ? 1 : -1]))
-#endif
+#endif /* !__GI_SCANNER__ */
 
 /* Provide a string identifying the current code position */
 #if defined(__GNUC__) && (__GNUC__ < 3) && !defined(__cplusplus)
@@ -850,10 +870,10 @@
 #endif
 
 /* Provide a string identifying the current function, non-concatenatable */
-#if defined (__func__)
-#define G_STRFUNC     ((const char*) (__func__))
-#elif defined (__GNUC__) && defined (__cplusplus)
+#if defined (__GNUC__) && defined (__cplusplus)
 #define G_STRFUNC     ((const char*) (__PRETTY_FUNCTION__))
+#elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#define G_STRFUNC     ((const char*) (__func__))
 #elif defined (__GNUC__) || (defined(_MSC_VER) && (_MSC_VER > 1300))
 #define G_STRFUNC     ((const char*) (__FUNCTION__))
 #else
@@ -984,14 +1004,96 @@
 #define G_ALIGNOF(type) (G_STRUCT_OFFSET (struct { char a; type b; }, b))
 #endif
 
-/* Deprecated -- do not use. */
-#ifndef G_DISABLE_DEPRECATED
+/**
+ * G_CONST_RETURN:
+ *
+ * If %G_DISABLE_CONST_RETURNS is defined, this macro expands
+ * to nothing. By default, the macro expands to const. The macro
+ * can be used in place of const for functions that return a value
+ * that should not be modified. The purpose of this macro is to allow
+ * us to turn on const for returned constant strings by default, while
+ * allowing programmers who find that annoying to turn it off. This macro
+ * should only be used for return values and for "out" parameters, it
+ * doesn't make sense for "in" parameters.
+ *
+ * Deprecated: 2.30: API providers should replace all existing uses with
+ * const and API consumers should adjust their code accordingly
+ */
 #ifdef G_DISABLE_CONST_RETURNS
-#define G_CONST_RETURN
+#define G_CONST_RETURN GLIB_DEPRECATED_MACRO_IN_2_30_FOR(const)
 #else
-#define G_CONST_RETURN const
+#define G_CONST_RETURN const GLIB_DEPRECATED_MACRO_IN_2_30_FOR(const)
 #endif
-#endif /* !G_DISABLE_DEPRECATED */
+
+/**
+ * G_NORETURN:
+ *
+ * Expands to the GNU C or MSVC `noreturn` function attribute depending on
+ * the compiler. It is used for declaring functions which never return.
+ * Enables optimization of the function, and avoids possible compiler warnings.
+ *
+ * Note that %G_NORETURN supersedes the previous %G_GNUC_NORETURN macro, which
+ * will eventually be deprecated. %G_NORETURN supports more platforms.
+ *
+ * Place the attribute before the function declaration as follows:
+ *
+ * |[<!-- language="C" -->
+ * G_NORETURN void g_abort (void);
+ * ]|
+ *
+ * Since: 2.68
+ */
+/* Note: We can’t annotate this with GLIB_AVAILABLE_MACRO_IN_2_68 because it’s
+ * used within the GLib headers in function declarations which are always
+ * evaluated when a header is included. This results in warnings in third party
+ * code which includes glib.h, even if the third party code doesn’t use the new
+ * macro itself. */
+#if (3 <= __GNUC__ || (__GNUC__ == 2 && 8 <= __GNUC_MINOR__)) || (0x5110 <= __SUNPRO_C)
+  /* For compatibility with G_NORETURN_FUNCPTR on clang, use
+     __attribute__((__noreturn__)), not _Noreturn.  */
+# define G_NORETURN __attribute__ ((__noreturn__))
+#elif 1200 <= _MSC_VER
+  /* Use MSVC specific syntax.  */
+# define G_NORETURN __declspec (noreturn)
+  /* Use ISO C++11 syntax when the compiler supports it.  */
+#elif (__cplusplus >= 201103 && !(__GNUC__ == 4 && __GNUC_MINOR__ == 7)) || (_MSC_VER >= 1900)
+# define G_NORETURN [[noreturn]]
+  /* Use ISO C11 syntax when the compiler supports it.  */
+#elif __STDC_VERSION__ >= 201112 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)
+# define G_NORETURN _Noreturn
+#else
+# define G_NORETURN /* empty */
+#endif
+
+/**
+ * G_NORETURN_FUNCPTR:
+ *
+ * Expands to the GNU C or MSVC `noreturn` function attribute depending on
+ * the compiler. It is used for declaring function pointers which never return.
+ * Enables optimization of the function, and avoids possible compiler warnings.
+ *
+ * Place the attribute before the function declaration as follows:
+ *
+ * |[<!-- language="C" -->
+ * G_NORETURN_FUNCPTR void (*funcptr) (void);
+ * ]|
+ *
+ * Note that if the function is not a function pointer, you can simply use
+ * the %G_NORETURN macro as follows:
+ *
+ * |[<!-- language="C" -->
+ * G_NORETURN void g_abort (void);
+ * ]|
+ *
+ * Since: 2.68
+ */
+#if (3 <= __GNUC__ || (__GNUC__ == 2 && 8 <= __GNUC_MINOR__)) || (0x5110 <= __SUNPRO_C)
+# define G_NORETURN_FUNCPTR __attribute__ ((__noreturn__))      \
+  GLIB_AVAILABLE_MACRO_IN_2_68
+#else
+# define G_NORETURN_FUNCPTR /* empty */         \
+  GLIB_AVAILABLE_MACRO_IN_2_68
+#endif
 
 /*
  * The G_LIKELY and G_UNLIKELY macros let the programmer give hints to 
@@ -1018,7 +1120,7 @@
 #define G_UNLIKELY(expr) (expr)
 #endif
 
-#if    __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)
+#if    __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1) || defined (__clang__)
 #define G_DEPRECATED __attribute__((__deprecated__))
 #elif defined(_MSC_VER) && (_MSC_VER >= 1300)
 #define G_DEPRECATED __declspec(deprecated)
@@ -1026,7 +1128,7 @@
 #define G_DEPRECATED
 #endif
 
-#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5) || defined (__clang__)
 #define G_DEPRECATED_FOR(f) __attribute__((__deprecated__("Use '" #f "' instead")))
 #elif defined(_MSC_FULL_VER) && (_MSC_FULL_VER > 140050320)
 #define G_DEPRECATED_FOR(f) __declspec(deprecated("is deprecated. Use '" #f "' instead"))
@@ -1034,7 +1136,7 @@
 #define G_DEPRECATED_FOR(f) G_DEPRECATED
 #endif
 
-#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#if    __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5) || defined (__clang__)
 #define G_UNAVAILABLE(maj,min) __attribute__((deprecated("Not available before " #maj "." #min)))
 #elif defined(_MSC_FULL_VER) && (_MSC_FULL_VER > 140050320)
 #define G_UNAVAILABLE(maj,min) __declspec(deprecated("is not available before " #maj "." #min))
@@ -1046,7 +1148,7 @@
 #define _GLIB_EXTERN extern
 #endif
 
-/* These macros are used to mark deprecated functions in GLib headers,
+/* These macros are used to mark deprecated symbols in GLib headers,
  * and thus have to be exposed in installed headers. But please
  * do *not* use them in other projects. Instead, use G_DEPRECATED
  * or define your own wrappers around it.
@@ -1056,15 +1158,54 @@
 #define GLIB_DEPRECATED _GLIB_EXTERN
 #define GLIB_DEPRECATED_FOR(f) _GLIB_EXTERN
 #define GLIB_UNAVAILABLE(maj,min) _GLIB_EXTERN
+#define GLIB_UNAVAILABLE_STATIC_INLINE(maj,min)
 #else
 #define GLIB_DEPRECATED G_DEPRECATED _GLIB_EXTERN
 #define GLIB_DEPRECATED_FOR(f) G_DEPRECATED_FOR(f) _GLIB_EXTERN
 #define GLIB_UNAVAILABLE(maj,min) G_UNAVAILABLE(maj,min) _GLIB_EXTERN
+#define GLIB_UNAVAILABLE_STATIC_INLINE(maj,min) G_UNAVAILABLE(maj,min)
+#endif
+
+#if !defined(GLIB_DISABLE_DEPRECATION_WARNINGS) && \
+    (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || \
+     __clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 4))
+#define _GLIB_GNUC_DO_PRAGMA(x) _Pragma(G_STRINGIFY (x))
+#define GLIB_DEPRECATED_MACRO _GLIB_GNUC_DO_PRAGMA(GCC warning "Deprecated pre-processor symbol")
+#define GLIB_DEPRECATED_MACRO_FOR(f) _GLIB_GNUC_DO_PRAGMA(GCC warning "Deprecated pre-processor symbol, replace with " #f)
+#define GLIB_UNAVAILABLE_MACRO(maj,min) _GLIB_GNUC_DO_PRAGMA(GCC warning "Not available before " #maj "." #min)
+#else
+#define GLIB_DEPRECATED_MACRO
+#define GLIB_DEPRECATED_MACRO_FOR(f)
+#define GLIB_UNAVAILABLE_MACRO(maj,min)
+#endif
+
+#if !defined(GLIB_DISABLE_DEPRECATION_WARNINGS) && \
+    ((defined (__GNUC__) && (__GNUC__ > 6 || (__GNUC__ == 6 && __GNUC_MINOR__ >= 1))) || \
+     (defined (__clang_major__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 0))))
+#define GLIB_DEPRECATED_ENUMERATOR G_DEPRECATED
+#define GLIB_DEPRECATED_ENUMERATOR_FOR(f) G_DEPRECATED_FOR(f)
+#define GLIB_UNAVAILABLE_ENUMERATOR(maj,min) G_UNAVAILABLE(maj,min)
+#else
+#define GLIB_DEPRECATED_ENUMERATOR
+#define GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+#define GLIB_UNAVAILABLE_ENUMERATOR(maj,min)
+#endif
+
+#if !defined(GLIB_DISABLE_DEPRECATION_WARNINGS) && \
+    ((defined (__GNUC__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))) || \
+     (defined (__clang_major__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 0))))
+#define GLIB_DEPRECATED_TYPE G_DEPRECATED
+#define GLIB_DEPRECATED_TYPE_FOR(f) G_DEPRECATED_FOR(f)
+#define GLIB_UNAVAILABLE_TYPE(maj,min) G_UNAVAILABLE(maj,min)
+#else
+#define GLIB_DEPRECATED_TYPE
+#define GLIB_DEPRECATED_TYPE_FOR(f)
+#define GLIB_UNAVAILABLE_TYPE(maj,min)
 #endif
 
 #ifndef __GI_SCANNER__
 
-#ifdef __GNUC__
+#if defined (__GNUC__) || defined (__clang__)
 
 /* these macros are private */
 #define _GLIB_AUTOPTR_FUNC_NAME(TypeName) glib_autoptr_cleanup_##TypeName
@@ -1074,12 +1215,15 @@
 #define _GLIB_AUTOPTR_LIST_TYPENAME(TypeName)  TypeName##_listautoptr
 #define _GLIB_AUTOPTR_SLIST_FUNC_NAME(TypeName) glib_slistautoptr_cleanup_##TypeName
 #define _GLIB_AUTOPTR_SLIST_TYPENAME(TypeName)  TypeName##_slistautoptr
+#define _GLIB_AUTOPTR_QUEUE_FUNC_NAME(TypeName) glib_queueautoptr_cleanup_##TypeName
+#define _GLIB_AUTOPTR_QUEUE_TYPENAME(TypeName)  TypeName##_queueautoptr
 #define _GLIB_AUTO_FUNC_NAME(TypeName)    glib_auto_cleanup_##TypeName
 #define _GLIB_CLEANUP(func)               __attribute__((cleanup(func)))
 #define _GLIB_DEFINE_AUTOPTR_CLEANUP_FUNCS(TypeName, ParentName, cleanup) \
   typedef TypeName *_GLIB_AUTOPTR_TYPENAME(TypeName);                                                           \
   typedef GList *_GLIB_AUTOPTR_LIST_TYPENAME(TypeName);                                                         \
   typedef GSList *_GLIB_AUTOPTR_SLIST_TYPENAME(TypeName);                                                       \
+  typedef GQueue *_GLIB_AUTOPTR_QUEUE_TYPENAME(TypeName);                                                       \
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS                                                                              \
   static G_GNUC_UNUSED inline void _GLIB_AUTOPTR_CLEAR_FUNC_NAME(TypeName) (TypeName *_ptr)                     \
     { if (_ptr) (cleanup) ((ParentName *) _ptr); }                                                              \
@@ -1089,6 +1233,8 @@
     { g_list_free_full (*_l, (GDestroyNotify) (void(*)(void)) cleanup); }                                       \
   static G_GNUC_UNUSED inline void _GLIB_AUTOPTR_SLIST_FUNC_NAME(TypeName) (GSList **_l)                        \
     { g_slist_free_full (*_l, (GDestroyNotify) (void(*)(void)) cleanup); }                                      \
+  static G_GNUC_UNUSED inline void _GLIB_AUTOPTR_QUEUE_FUNC_NAME(TypeName) (GQueue **_q)                        \
+    { if (*_q) g_queue_free_full (*_q, (GDestroyNotify) (void(*)(void)) cleanup); }                             \
   G_GNUC_END_IGNORE_DEPRECATIONS
 #define _GLIB_DEFINE_AUTOPTR_CHAINUP(ModuleObjName, ParentName) \
   _GLIB_DEFINE_AUTOPTR_CLEANUP_FUNCS(ModuleObjName, ParentName, _GLIB_AUTOPTR_CLEAR_FUNC_NAME(ParentName))
@@ -1099,15 +1245,16 @@
   _GLIB_DEFINE_AUTOPTR_CLEANUP_FUNCS(TypeName, TypeName, func)
 #define G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(TypeName, func) \
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS                                                                              \
-  static inline void _GLIB_AUTO_FUNC_NAME(TypeName) (TypeName *_ptr) { (func) (_ptr); }                         \
+  static G_GNUC_UNUSED inline void _GLIB_AUTO_FUNC_NAME(TypeName) (TypeName *_ptr) { (func) (_ptr); }                         \
   G_GNUC_END_IGNORE_DEPRECATIONS
 #define G_DEFINE_AUTO_CLEANUP_FREE_FUNC(TypeName, func, none) \
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS                                                                              \
-  static inline void _GLIB_AUTO_FUNC_NAME(TypeName) (TypeName *_ptr) { if (*_ptr != none) (func) (*_ptr); }     \
+  static G_GNUC_UNUSED inline void _GLIB_AUTO_FUNC_NAME(TypeName) (TypeName *_ptr) { if (*_ptr != none) (func) (*_ptr); }     \
   G_GNUC_END_IGNORE_DEPRECATIONS
 #define g_autoptr(TypeName) _GLIB_CLEANUP(_GLIB_AUTOPTR_FUNC_NAME(TypeName)) _GLIB_AUTOPTR_TYPENAME(TypeName)
 #define g_autolist(TypeName) _GLIB_CLEANUP(_GLIB_AUTOPTR_LIST_FUNC_NAME(TypeName)) _GLIB_AUTOPTR_LIST_TYPENAME(TypeName)
 #define g_autoslist(TypeName) _GLIB_CLEANUP(_GLIB_AUTOPTR_SLIST_FUNC_NAME(TypeName)) _GLIB_AUTOPTR_SLIST_TYPENAME(TypeName)
+#define g_autoqueue(TypeName) _GLIB_CLEANUP(_GLIB_AUTOPTR_QUEUE_FUNC_NAME(TypeName)) _GLIB_AUTOPTR_QUEUE_TYPENAME(TypeName)
 #define g_auto(TypeName) _GLIB_CLEANUP(_GLIB_AUTO_FUNC_NAME(TypeName)) TypeName
 #define g_autofree _GLIB_CLEANUP(g_autoptr_cleanup_generic_gfree)
 
@@ -1133,11 +1280,27 @@
 
 #endif /* __GI_SCANNER__ */
 
+/**
+ * G_SIZEOF_MEMBER:
+ * @struct_type: a structure type, e.g. #GOutputVector
+ * @member: a field in the structure, e.g. `size`
+ *
+ * Returns the size of @member in the struct definition without having a
+ * declared instance of @struct_type.
+ *
+ * Returns: the size of @member in bytes.
+ *
+ * Since: 2.64
+ */
+#define G_SIZEOF_MEMBER(struct_type, member) \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    sizeof (((struct_type *) 0)->member)
+
 #endif /* __G_MACROS_H__ */
 
 #include <limits.h>
 #include <float.h>
-/* #undef GLIB_HAVE_ALLOCA_H */
+#define GLIB_HAVE_ALLOCA_H
 
 /* Specifies that GLib's g_print*() functions wrap the
  * system printf functions.  This is useful to know, for example,
@@ -1197,21 +1360,21 @@ G_GNUC_EXTENSION typedef unsigned long long guint64;
 #define G_GUINT64_FORMAT "llu"
 
 
-#define GLIB_SIZEOF_VOID_P 4
-#define GLIB_SIZEOF_LONG   4
-#define GLIB_SIZEOF_SIZE_T 4
-#define GLIB_SIZEOF_SSIZE_T 4
+#define GLIB_SIZEOF_VOID_P 8
+#define GLIB_SIZEOF_LONG   8
+#define GLIB_SIZEOF_SIZE_T 8
+#define GLIB_SIZEOF_SSIZE_T 8
 
-typedef signed int gssize;
-typedef unsigned int gsize;
-#define G_GSIZE_MODIFIER ""
-#define G_GSSIZE_MODIFIER ""
-#define G_GSIZE_FORMAT "u"
-#define G_GSSIZE_FORMAT "i"
+typedef signed long gssize;
+typedef unsigned long gsize;
+#define G_GSIZE_MODIFIER "l"
+#define G_GSSIZE_MODIFIER "l"
+#define G_GSIZE_FORMAT "lu"
+#define G_GSSIZE_FORMAT "li"
 
-#define G_MAXSIZE	G_MAXUINT
-#define G_MINSSIZE	G_MININT
-#define G_MAXSSIZE	G_MAXINT
+#define G_MAXSIZE	G_MAXULONG
+#define G_MINSSIZE	G_MINLONG
+#define G_MAXSSIZE	G_MAXLONG
 
 typedef gint64 goffset;
 #define G_MINOFFSET	G_MININT64
@@ -1221,34 +1384,29 @@ typedef gint64 goffset;
 #define G_GOFFSET_FORMAT        G_GINT64_FORMAT
 #define G_GOFFSET_CONSTANT(val) G_GINT64_CONSTANT(val)
 
-#define G_POLLFD_FORMAT "%#x"
+#define G_POLLFD_FORMAT "%d"
 
-#define GPOINTER_TO_INT(p)	((gint)  (gint) (p))
-#define GPOINTER_TO_UINT(p)	((guint) (guint) (p))
+#define GPOINTER_TO_INT(p)	((gint)  (glong) (p))
+#define GPOINTER_TO_UINT(p)	((guint) (gulong) (p))
 
-#define GINT_TO_POINTER(i)	((gpointer) (gint) (i))
-#define GUINT_TO_POINTER(u)	((gpointer) (guint) (u))
+#define GINT_TO_POINTER(i)	((gpointer) (glong) (i))
+#define GUINT_TO_POINTER(u)	((gpointer) (gulong) (u))
 
-typedef signed int gintptr;
-typedef unsigned int guintptr;
+typedef signed long gintptr;
+typedef unsigned long guintptr;
 
-#define G_GINTPTR_MODIFIER      ""
-#define G_GINTPTR_FORMAT        "i"
-#define G_GUINTPTR_FORMAT       "u"
-
-#ifndef G_DISABLE_DEPRECATED
-#define g_ATEXIT(proc)	(atexit (proc))
-#define g_memmove(dest,src,len) G_STMT_START { memmove ((dest), (src), (len)); } G_STMT_END
-#endif
+#define G_GINTPTR_MODIFIER      "l"
+#define G_GINTPTR_FORMAT        "li"
+#define G_GUINTPTR_FORMAT       "lu"
 
 #define GLIB_MAJOR_VERSION 2
-#define GLIB_MINOR_VERSION 61
-#define GLIB_MICRO_VERSION 0
+#define GLIB_MINOR_VERSION 67
+#define GLIB_MICRO_VERSION 1
 
-#define G_OS_WIN32
-#define G_PLATFORM_WIN32
+#define G_OS_UNIX
 
-/* #undef G_VA_COPY */
+#define G_VA_COPY va_copy
+#define G_VA_COPY_AS_ARRAY 1
 
 
 #ifndef __cplusplus
@@ -1268,7 +1426,7 @@ typedef unsigned int guintptr;
 #endif
 
 #define G_HAVE_GROWING_STACK 0
-/* #undef G_HAVE_GNUC_VISIBILITY */
+#define G_HAVE_GNUC_VISIBILITY 1
 
 #ifndef _MSC_VER
 # define G_HAVE_GNUC_VARARGS 1
@@ -1285,9 +1443,8 @@ typedef unsigned int guintptr;
 #endif
 
 #define G_THREADS_ENABLED
-#define G_THREADS_IMPL_WIN32
+#define G_THREADS_IMPL_POSIX
 
-#undef G_ATOMIC_OP_MEMORY_BARRIER_NEEDED
 #define G_ATOMIC_LOCK_FREE
 
 #define GINT16_TO_LE(val)	((gint16) (val))
@@ -1305,18 +1462,18 @@ typedef unsigned int guintptr;
 #define GINT64_TO_BE(val)	((gint64) GUINT64_SWAP_LE_BE (val))
 #define GUINT64_TO_BE(val)	(GUINT64_SWAP_LE_BE (val))
 
-#define GLONG_TO_LE(val)	((glong) GINT32_TO_LE (val))
-#define GULONG_TO_LE(val)	((gulong) GUINT32_TO_LE (val))
-#define GLONG_TO_BE(val)	((glong) GINT32_TO_BE (val))
-#define GULONG_TO_BE(val)	((gulong) GUINT32_TO_BE (val))
+#define GLONG_TO_LE(val)	((glong) GINT64_TO_LE (val))
+#define GULONG_TO_LE(val)	((gulong) GUINT64_TO_LE (val))
+#define GLONG_TO_BE(val)	((glong) GINT64_TO_BE (val))
+#define GULONG_TO_BE(val)	((gulong) GUINT64_TO_BE (val))
 #define GINT_TO_LE(val)		((gint) GINT32_TO_LE (val))
 #define GUINT_TO_LE(val)	((guint) GUINT32_TO_LE (val))
 #define GINT_TO_BE(val)		((gint) GINT32_TO_BE (val))
 #define GUINT_TO_BE(val)	((guint) GUINT32_TO_BE (val))
-#define GSIZE_TO_LE(val)	((gsize) GUINT32_TO_LE (val))
-#define GSSIZE_TO_LE(val)	((gssize) GINT32_TO_LE (val))
-#define GSIZE_TO_BE(val)	((gsize) GUINT32_TO_BE (val))
-#define GSSIZE_TO_BE(val)	((gssize) GINT32_TO_BE (val))
+#define GSIZE_TO_LE(val)	((gsize) GUINT64_TO_LE (val))
+#define GSSIZE_TO_LE(val)	((gssize) GINT64_TO_LE (val))
+#define GSIZE_TO_BE(val)	((gsize) GUINT64_TO_BE (val))
+#define GSSIZE_TO_BE(val)	((gssize) GINT64_TO_BE (val))
 #define G_BYTE_ORDER G_LITTLE_ENDIAN
 
 #define GLIB_SYSDEF_POLLIN =1
@@ -1326,23 +1483,23 @@ typedef unsigned int guintptr;
 #define GLIB_SYSDEF_POLLERR =8
 #define GLIB_SYSDEF_POLLNVAL =32
 
-#define G_MODULE_SUFFIX "dll"
+#define G_MODULE_SUFFIX "so"
 
-typedef void* GPid;
-#define G_PID_FORMAT "p"
+typedef int GPid;
+#define G_PID_FORMAT "i"
 
 #define GLIB_SYSDEF_AF_UNIX 1
 #define GLIB_SYSDEF_AF_INET 2
-#define GLIB_SYSDEF_AF_INET6 23
+#define GLIB_SYSDEF_AF_INET6 30
 
 #define GLIB_SYSDEF_MSG_OOB 1
 #define GLIB_SYSDEF_MSG_PEEK 2
 #define GLIB_SYSDEF_MSG_DONTROUTE 4
 
-#define G_DIR_SEPARATOR '\\'
-#define G_DIR_SEPARATOR_S "\\"
-#define G_SEARCHPATH_SEPARATOR ';'
-#define G_SEARCHPATH_SEPARATOR_S ";"
+#define G_DIR_SEPARATOR '/'
+#define G_DIR_SEPARATOR_S "/"
+#define G_SEARCHPATH_SEPARATOR ':'
+#define G_SEARCHPATH_SEPARATOR_S ":"
 
 G_END_DECLS
 
@@ -1574,6 +1731,36 @@ G_END_DECLS
  */
 #define GLIB_VERSION_2_62       (G_ENCODE_VERSION (2, 62))
 
+/**
+ * GLIB_VERSION_2_64:
+ *
+ * A macro that evaluates to the 2.64 version of GLib, in a format
+ * that can be used by the C pre-processor.
+ *
+ * Since: 2.64
+ */
+#define GLIB_VERSION_2_64       (G_ENCODE_VERSION (2, 64))
+
+/**
+ * GLIB_VERSION_2_66:
+ *
+ * A macro that evaluates to the 2.66 version of GLib, in a format
+ * that can be used by the C pre-processor.
+ *
+ * Since: 2.66
+ */
+#define GLIB_VERSION_2_66       (G_ENCODE_VERSION (2, 66))
+
+/**
+ * GLIB_VERSION_2_68:
+ *
+ * A macro that evaluates to the 2.68 version of GLib, in a format
+ * that can be used by the C pre-processor.
+ *
+ * Since: 2.68
+ */
+#define GLIB_VERSION_2_68       (G_ENCODE_VERSION (2, 68))
+
 /* evaluates to the current stable version; for development cycles,
  * this means the next stable target
  */
@@ -1668,267 +1855,713 @@ G_END_DECLS
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_26
 # define GLIB_DEPRECATED_IN_2_26                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_26_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_26          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_26_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_26          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_26_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_26           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_26_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_26                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_26_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_26
+# define GLIB_DEPRECATED_MACRO_IN_2_26_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_26
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_26_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_26
+# define GLIB_DEPRECATED_TYPE_IN_2_26_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_26
 # define GLIB_AVAILABLE_IN_2_26                 GLIB_UNAVAILABLE(2, 26)
+# define GLIB_AVAILABLE_MACRO_IN_2_26           GLIB_UNAVAILABLE_MACRO(2, 26)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_26      GLIB_UNAVAILABLE_ENUMERATOR(2, 26)
+# define GLIB_AVAILABLE_TYPE_IN_2_26            GLIB_UNAVAILABLE_TYPE(2, 26)
 #else
 # define GLIB_AVAILABLE_IN_2_26                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_26
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_26
+# define GLIB_AVAILABLE_TYPE_IN_2_26
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_28
 # define GLIB_DEPRECATED_IN_2_28                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_28_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_28          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_28_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_28          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_28_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_28           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_28_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_28                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_28_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_28
+# define GLIB_DEPRECATED_MACRO_IN_2_28_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_28
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_28_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_28
+# define GLIB_DEPRECATED_TYPE_IN_2_28_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_28
 # define GLIB_AVAILABLE_IN_2_28                 GLIB_UNAVAILABLE(2, 28)
+# define GLIB_AVAILABLE_MACRO_IN_2_28           GLIB_UNAVAILABLE_MACRO(2, 28)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_28      GLIB_UNAVAILABLE_ENUMERATOR(2, 28)
+# define GLIB_AVAILABLE_TYPE_IN_2_28            GLIB_UNAVAILABLE_TYPE(2, 28)
 #else
 # define GLIB_AVAILABLE_IN_2_28                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_28
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_28
+# define GLIB_AVAILABLE_TYPE_IN_2_28
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_30
 # define GLIB_DEPRECATED_IN_2_30                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_30_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_30          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_30_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_30          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_30_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_30           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_30_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_30                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_30_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_30
+# define GLIB_DEPRECATED_MACRO_IN_2_30_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_30
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_30_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_30
+# define GLIB_DEPRECATED_TYPE_IN_2_30_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_30
 # define GLIB_AVAILABLE_IN_2_30                 GLIB_UNAVAILABLE(2, 30)
+# define GLIB_AVAILABLE_MACRO_IN_2_30           GLIB_UNAVAILABLE_MACRO(2, 30)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_30      GLIB_UNAVAILABLE_ENUMERATOR(2, 30)
+# define GLIB_AVAILABLE_TYPE_IN_2_30            GLIB_UNAVAILABLE_TYPE(2, 30)
 #else
 # define GLIB_AVAILABLE_IN_2_30                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_30
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_30
+# define GLIB_AVAILABLE_TYPE_IN_2_30
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_32
 # define GLIB_DEPRECATED_IN_2_32                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_32_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_32          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_32_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_32           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_32_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_32                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_32_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_32
+# define GLIB_DEPRECATED_MACRO_IN_2_32_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_32
+# define GLIB_DEPRECATED_TYPE_IN_2_32_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_32_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_32
+# define GLIB_DEPRECATED_TYPE_IN_2_32_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_32
 # define GLIB_AVAILABLE_IN_2_32                 GLIB_UNAVAILABLE(2, 32)
+# define GLIB_AVAILABLE_MACRO_IN_2_32           GLIB_UNAVAILABLE_MACRO(2, 32)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_32      GLIB_UNAVAILABLE_ENUMERATOR(2, 32)
+# define GLIB_AVAILABLE_TYPE_IN_2_32            GLIB_UNAVAILABLE_TYPE(2, 32)
 #else
 # define GLIB_AVAILABLE_IN_2_32                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_32
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_32
+# define GLIB_AVAILABLE_TYPE_IN_2_32
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_34
 # define GLIB_DEPRECATED_IN_2_34                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_34_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_34          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_34_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_34          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_34_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_34           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_34_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_34                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_34_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_34
+# define GLIB_DEPRECATED_MACRO_IN_2_34_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_34
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_34_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_34
+# define GLIB_DEPRECATED_TYPE_IN_2_34_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_34
 # define GLIB_AVAILABLE_IN_2_34                 GLIB_UNAVAILABLE(2, 34)
+# define GLIB_AVAILABLE_MACRO_IN_2_34           GLIB_UNAVAILABLE_MACRO(2, 34)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_34      GLIB_UNAVAILABLE_ENUMERATOR(2, 34)
+# define GLIB_AVAILABLE_TYPE_IN_2_34            GLIB_UNAVAILABLE_TYPE(2, 34)
 #else
 # define GLIB_AVAILABLE_IN_2_34                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_34
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_34
+# define GLIB_AVAILABLE_TYPE_IN_2_34
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_36
 # define GLIB_DEPRECATED_IN_2_36                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_36_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_36          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_36_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_36          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_36_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_36           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_36_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_36                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_36_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_36
+# define GLIB_DEPRECATED_MACRO_IN_2_36_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_36
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_36_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_36
+# define GLIB_DEPRECATED_TYPE_IN_2_36_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_36
 # define GLIB_AVAILABLE_IN_2_36                 GLIB_UNAVAILABLE(2, 36)
+# define GLIB_AVAILABLE_MACRO_IN_2_36           GLIB_UNAVAILABLE_MACRO(2, 36)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_36      GLIB_UNAVAILABLE_ENUMERATOR(2, 36)
+# define GLIB_AVAILABLE_TYPE_IN_2_36            GLIB_UNAVAILABLE_TYPE(2, 36)
 #else
 # define GLIB_AVAILABLE_IN_2_36                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_36
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_36
+# define GLIB_AVAILABLE_TYPE_IN_2_36
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_38
 # define GLIB_DEPRECATED_IN_2_38                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_38_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_38          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_38_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_38          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_38_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_38           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_38_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_38                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_38_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_38
+# define GLIB_DEPRECATED_MACRO_IN_2_38_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_38
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_38_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_38
+# define GLIB_DEPRECATED_TYPE_IN_2_38_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_38
 # define GLIB_AVAILABLE_IN_2_38                 GLIB_UNAVAILABLE(2, 38)
+# define GLIB_AVAILABLE_MACRO_IN_2_38           GLIB_UNAVAILABLE_MACRO(2, 38)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_38      GLIB_UNAVAILABLE_ENUMERATOR(2, 38)
+# define GLIB_AVAILABLE_TYPE_IN_2_38            GLIB_UNAVAILABLE_TYPE(2, 38)
 #else
 # define GLIB_AVAILABLE_IN_2_38                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_38
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_38
+# define GLIB_AVAILABLE_TYPE_IN_2_38
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_40
 # define GLIB_DEPRECATED_IN_2_40                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_40_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_40          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_40_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_40          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_40_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_40           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_40_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_40                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_40_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_40
+# define GLIB_DEPRECATED_MACRO_IN_2_40_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_40
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_40_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_40
+# define GLIB_DEPRECATED_TYPE_IN_2_40_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_40
 # define GLIB_AVAILABLE_IN_2_40                 GLIB_UNAVAILABLE(2, 40)
+# define GLIB_AVAILABLE_MACRO_IN_2_40           GLIB_UNAVAILABLE_MACRO(2, 40)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_40      GLIB_UNAVAILABLE_ENUMERATOR(2, 40)
+# define GLIB_AVAILABLE_TYPE_IN_2_40            GLIB_UNAVAILABLE_TYPE(2, 40)
 #else
 # define GLIB_AVAILABLE_IN_2_40                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_40
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_40
+# define GLIB_AVAILABLE_TYPE_IN_2_40
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_42
 # define GLIB_DEPRECATED_IN_2_42                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_42_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_42          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_42_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_42                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_42_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_42
+# define GLIB_DEPRECATED_MACRO_IN_2_42_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_42
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_42_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_42
+# define GLIB_DEPRECATED_TYPE_IN_2_42_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_42
 # define GLIB_AVAILABLE_IN_2_42                 GLIB_UNAVAILABLE(2, 42)
+# define GLIB_AVAILABLE_MACRO_IN_2_42           GLIB_UNAVAILABLE_MACRO(2, 42)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_42      GLIB_UNAVAILABLE_ENUMERATOR(2, 42)
+# define GLIB_AVAILABLE_TYPE_IN_2_42            GLIB_UNAVAILABLE_TYPE(2, 42)
 #else
 # define GLIB_AVAILABLE_IN_2_42                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_42
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_42
+# define GLIB_AVAILABLE_TYPE_IN_2_42
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_44
 # define GLIB_DEPRECATED_IN_2_44                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_44_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_44          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_44_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_44          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_44_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_44           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_44_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_44                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_44_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_44
+# define GLIB_DEPRECATED_MACRO_IN_2_44_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_44
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_44_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_44
+# define GLIB_DEPRECATED_TYPE_IN_2_44_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_44
 # define GLIB_AVAILABLE_IN_2_44                 GLIB_UNAVAILABLE(2, 44)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_44   GLIB_UNAVAILABLE_STATIC_INLINE(2, 44)
+# define GLIB_AVAILABLE_MACRO_IN_2_44           GLIB_UNAVAILABLE_MACRO(2, 44)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_44      GLIB_UNAVAILABLE_ENUMERATOR(2, 44)
+# define GLIB_AVAILABLE_TYPE_IN_2_44            GLIB_UNAVAILABLE_TYPE(2, 44)
 #else
 # define GLIB_AVAILABLE_IN_2_44                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_44
+# define GLIB_AVAILABLE_MACRO_IN_2_44
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_44
+# define GLIB_AVAILABLE_TYPE_IN_2_44
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_46
 # define GLIB_DEPRECATED_IN_2_46                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_46_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_46          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_46_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_46                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_46_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_46
+# define GLIB_DEPRECATED_MACRO_IN_2_46_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_46
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_46_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_46
+# define GLIB_DEPRECATED_TYPE_IN_2_46_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_46
 # define GLIB_AVAILABLE_IN_2_46                 GLIB_UNAVAILABLE(2, 46)
+# define GLIB_AVAILABLE_MACRO_IN_2_46           GLIB_UNAVAILABLE_MACRO(2, 46)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_46      GLIB_UNAVAILABLE_ENUMERATOR(2, 46)
+# define GLIB_AVAILABLE_TYPE_IN_2_46            GLIB_UNAVAILABLE_TYPE(2, 46)
 #else
 # define GLIB_AVAILABLE_IN_2_46                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_46
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_46
+# define GLIB_AVAILABLE_TYPE_IN_2_46
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_48
 # define GLIB_DEPRECATED_IN_2_48                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_48_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_48          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_48_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_48          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_48_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_48           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_48_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_48                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_48_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_48
+# define GLIB_DEPRECATED_MACRO_IN_2_48_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_48
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_48_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_48
+# define GLIB_DEPRECATED_TYPE_IN_2_48_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_48
 # define GLIB_AVAILABLE_IN_2_48                 GLIB_UNAVAILABLE(2, 48)
+# define GLIB_AVAILABLE_MACRO_IN_2_48           GLIB_UNAVAILABLE_MACRO(2, 48)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_48      GLIB_UNAVAILABLE_ENUMERATOR(2, 48)
+# define GLIB_AVAILABLE_TYPE_IN_2_48            GLIB_UNAVAILABLE_TYPE(2, 48)
 #else
 # define GLIB_AVAILABLE_IN_2_48                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_48
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_48
+# define GLIB_AVAILABLE_TYPE_IN_2_48
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_50
 # define GLIB_DEPRECATED_IN_2_50                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_50_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_50          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_50_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_50          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_50_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_50           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_50_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_50                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_50_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_50
+# define GLIB_DEPRECATED_MACRO_IN_2_50_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_50
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_50_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_50
+# define GLIB_DEPRECATED_TYPE_IN_2_50_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_50
 # define GLIB_AVAILABLE_IN_2_50                 GLIB_UNAVAILABLE(2, 50)
+# define GLIB_AVAILABLE_MACRO_IN_2_50           GLIB_UNAVAILABLE_MACRO(2, 50)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_50      GLIB_UNAVAILABLE_ENUMERATOR(2, 50)
+# define GLIB_AVAILABLE_TYPE_IN_2_50            GLIB_UNAVAILABLE_TYPE(2, 50)
 #else
 # define GLIB_AVAILABLE_IN_2_50                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_50
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_50
+# define GLIB_AVAILABLE_TYPE_IN_2_50
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_52
 # define GLIB_DEPRECATED_IN_2_52                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_52_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_52          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_52_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_52          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_52_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_52           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_52_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_52                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_52_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_52
+# define GLIB_DEPRECATED_MACRO_IN_2_52_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_52
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_52_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_52
+# define GLIB_DEPRECATED_TYPE_IN_2_52_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_52
 # define GLIB_AVAILABLE_IN_2_52                 GLIB_UNAVAILABLE(2, 52)
+# define GLIB_AVAILABLE_MACRO_IN_2_52           GLIB_UNAVAILABLE_MACRO(2, 52)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_52      GLIB_UNAVAILABLE_ENUMERATOR(2, 52)
+# define GLIB_AVAILABLE_TYPE_IN_2_52            GLIB_UNAVAILABLE_TYPE(2, 52)
 #else
 # define GLIB_AVAILABLE_IN_2_52                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_52
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_52
+# define GLIB_AVAILABLE_TYPE_IN_2_52
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_54
 # define GLIB_DEPRECATED_IN_2_54                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_54_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_54          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_54_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_54          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_54_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_54           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_54_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_54                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_54_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_54
+# define GLIB_DEPRECATED_MACRO_IN_2_54_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_54
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_54_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_54
+# define GLIB_DEPRECATED_TYPE_IN_2_54_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_54
 # define GLIB_AVAILABLE_IN_2_54                 GLIB_UNAVAILABLE(2, 54)
+# define GLIB_AVAILABLE_MACRO_IN_2_54           GLIB_UNAVAILABLE_MACRO(2, 54)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_54      GLIB_UNAVAILABLE_ENUMERATOR(2, 54)
+# define GLIB_AVAILABLE_TYPE_IN_2_54            GLIB_UNAVAILABLE_TYPE(2, 54)
 #else
 # define GLIB_AVAILABLE_IN_2_54                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_54
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_54
+# define GLIB_AVAILABLE_TYPE_IN_2_54
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_56
 # define GLIB_DEPRECATED_IN_2_56                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_56_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_56          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_56_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_56          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_56_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_56           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_56_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_56                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_56_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_56
+# define GLIB_DEPRECATED_MACRO_IN_2_56_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_56
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_56_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_56
+# define GLIB_DEPRECATED_TYPE_IN_2_56_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_56
 # define GLIB_AVAILABLE_IN_2_56                 GLIB_UNAVAILABLE(2, 56)
+# define GLIB_AVAILABLE_MACRO_IN_2_56           GLIB_UNAVAILABLE_MACRO(2, 56)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_56      GLIB_UNAVAILABLE_ENUMERATOR(2, 56)
+# define GLIB_AVAILABLE_TYPE_IN_2_56            GLIB_UNAVAILABLE_TYPE(2, 56)
 #else
 # define GLIB_AVAILABLE_IN_2_56                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_56
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_56
+# define GLIB_AVAILABLE_TYPE_IN_2_56
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_58
 # define GLIB_DEPRECATED_IN_2_58                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_58_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_58          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_58_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_58          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_58_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_58           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_58_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_58                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_58_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_58
+# define GLIB_DEPRECATED_MACRO_IN_2_58_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_58
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_58_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_58
+# define GLIB_DEPRECATED_TYPE_IN_2_58_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_58
 # define GLIB_AVAILABLE_IN_2_58                 GLIB_UNAVAILABLE(2, 58)
+# define GLIB_AVAILABLE_MACRO_IN_2_58           GLIB_UNAVAILABLE_MACRO(2, 58)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_58      GLIB_UNAVAILABLE_ENUMERATOR(2, 58)
+# define GLIB_AVAILABLE_TYPE_IN_2_58            GLIB_UNAVAILABLE_TYPE(2, 58)
 #else
 # define GLIB_AVAILABLE_IN_2_58                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_MACRO_IN_2_58
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_58
+# define GLIB_AVAILABLE_TYPE_IN_2_58
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_60
 # define GLIB_DEPRECATED_IN_2_60                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_60_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_60          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_60_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_60          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_60_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_60           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_60_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_60                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_60_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_60
+# define GLIB_DEPRECATED_MACRO_IN_2_60_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_60
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_60_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_60
+# define GLIB_DEPRECATED_TYPE_IN_2_60_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_60
 # define GLIB_AVAILABLE_IN_2_60                 GLIB_UNAVAILABLE(2, 60)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_60   GLIB_UNAVAILABLE_STATIC_INLINE(2, 60)
+# define GLIB_AVAILABLE_MACRO_IN_2_60           GLIB_UNAVAILABLE_MACRO(2, 60)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_60      GLIB_UNAVAILABLE_ENUMERATOR(2, 60)
+# define GLIB_AVAILABLE_TYPE_IN_2_60            GLIB_UNAVAILABLE_TYPE(2, 60)
 #else
 # define GLIB_AVAILABLE_IN_2_60                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_60
+# define GLIB_AVAILABLE_MACRO_IN_2_60
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_60
+# define GLIB_AVAILABLE_TYPE_IN_2_60
 #endif
 
 #if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_62
 # define GLIB_DEPRECATED_IN_2_62                GLIB_DEPRECATED
 # define GLIB_DEPRECATED_IN_2_62_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_62          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_62_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_62          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_62_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_62           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_62_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
 #else
 # define GLIB_DEPRECATED_IN_2_62                _GLIB_EXTERN
 # define GLIB_DEPRECATED_IN_2_62_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_62
+# define GLIB_DEPRECATED_MACRO_IN_2_62_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_62
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_62_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_62
+# define GLIB_DEPRECATED_TYPE_IN_2_62_FOR(f)
 #endif
 
 #if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_62
 # define GLIB_AVAILABLE_IN_2_62                 GLIB_UNAVAILABLE(2, 62)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_62   GLIB_UNAVAILABLE_STATIC_INLINE(2, 62)
+# define GLIB_AVAILABLE_MACRO_IN_2_62           GLIB_UNAVAILABLE_MACRO(2, 62)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_62      GLIB_UNAVAILABLE_ENUMERATOR(2, 62)
+# define GLIB_AVAILABLE_TYPE_IN_2_62            GLIB_UNAVAILABLE_TYPE(2, 62)
 #else
 # define GLIB_AVAILABLE_IN_2_62                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_62
+# define GLIB_AVAILABLE_MACRO_IN_2_62
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_62
+# define GLIB_AVAILABLE_TYPE_IN_2_62
+#endif
+
+#if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_64
+# define GLIB_DEPRECATED_IN_2_64                GLIB_DEPRECATED
+# define GLIB_DEPRECATED_IN_2_64_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_64          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_64_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_64          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_64_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_64           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_64_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
+#else
+# define GLIB_DEPRECATED_IN_2_64                _GLIB_EXTERN
+# define GLIB_DEPRECATED_IN_2_64_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_64
+# define GLIB_DEPRECATED_MACRO_IN_2_64_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_64
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_64_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_64
+# define GLIB_DEPRECATED_TYPE_IN_2_64_FOR(f)
+#endif
+
+#if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_64
+# define GLIB_AVAILABLE_IN_2_64                 GLIB_UNAVAILABLE(2, 64)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_64   GLIB_UNAVAILABLE_STATIC_INLINE(2, 64)
+# define GLIB_AVAILABLE_MACRO_IN_2_64           GLIB_UNAVAILABLE_MACRO(2, 64)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_64      GLIB_UNAVAILABLE_ENUMERATOR(2, 64)
+# define GLIB_AVAILABLE_TYPE_IN_2_64            GLIB_UNAVAILABLE_TYPE(2, 64)
+#else
+# define GLIB_AVAILABLE_IN_2_64                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_64
+# define GLIB_AVAILABLE_MACRO_IN_2_64
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_64
+# define GLIB_AVAILABLE_TYPE_IN_2_64
+#endif
+
+#if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_66
+# define GLIB_DEPRECATED_IN_2_66                GLIB_DEPRECATED
+# define GLIB_DEPRECATED_IN_2_66_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_66          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_66_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_66          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_66_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_66           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_66_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
+#else
+# define GLIB_DEPRECATED_IN_2_66                _GLIB_EXTERN
+# define GLIB_DEPRECATED_IN_2_66_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_66
+# define GLIB_DEPRECATED_MACRO_IN_2_66_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_66
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_66_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_66
+# define GLIB_DEPRECATED_TYPE_IN_2_66_FOR(f)
+#endif
+
+#if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_66
+# define GLIB_AVAILABLE_IN_2_66                 GLIB_UNAVAILABLE(2, 66)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_66   GLIB_UNAVAILABLE_STATIC_INLINE(2, 66)
+# define GLIB_AVAILABLE_MACRO_IN_2_66           GLIB_UNAVAILABLE_MACRO(2, 66)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_66      GLIB_UNAVAILABLE_ENUMERATOR(2, 66)
+# define GLIB_AVAILABLE_TYPE_IN_2_66            GLIB_UNAVAILABLE_TYPE(2, 66)
+#else
+# define GLIB_AVAILABLE_IN_2_66                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_66
+# define GLIB_AVAILABLE_MACRO_IN_2_66
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_66
+# define GLIB_AVAILABLE_TYPE_IN_2_66
+#endif
+
+#if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_68
+# define GLIB_DEPRECATED_IN_2_68                GLIB_DEPRECATED
+# define GLIB_DEPRECATED_IN_2_68_FOR(f)         GLIB_DEPRECATED_FOR(f)
+# define GLIB_DEPRECATED_MACRO_IN_2_68          GLIB_DEPRECATED_MACRO
+# define GLIB_DEPRECATED_MACRO_IN_2_68_FOR(f)   GLIB_DEPRECATED_MACRO_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_68          GLIB_DEPRECATED_ENUMERATOR
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_68_FOR(f)   GLIB_DEPRECATED_ENUMERATOR_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_68           GLIB_DEPRECATED_TYPE
+# define GLIB_DEPRECATED_TYPE_IN_2_68_FOR(f)    GLIB_DEPRECATED_TYPE_FOR(f)
+#else
+# define GLIB_DEPRECATED_IN_2_68                _GLIB_EXTERN
+# define GLIB_DEPRECATED_IN_2_68_FOR(f)         _GLIB_EXTERN
+# define GLIB_DEPRECATED_MACRO_IN_2_68
+# define GLIB_DEPRECATED_MACRO_IN_2_68_FOR(f)
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_68
+# define GLIB_DEPRECATED_ENUMERATOR_IN_2_68_FOR(f)
+# define GLIB_DEPRECATED_TYPE_IN_2_68
+# define GLIB_DEPRECATED_TYPE_IN_2_68_FOR(f)
+#endif
+
+#if GLIB_VERSION_MAX_ALLOWED < GLIB_VERSION_2_68
+# define GLIB_AVAILABLE_IN_2_68                 GLIB_UNAVAILABLE(2, 68)
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_68   GLIB_UNAVAILABLE_STATIC_INLINE(2, 68)
+# define GLIB_AVAILABLE_MACRO_IN_2_68           GLIB_UNAVAILABLE_MACRO(2, 68)
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_68      GLIB_UNAVAILABLE_ENUMERATOR(2, 68)
+# define GLIB_AVAILABLE_TYPE_IN_2_68            GLIB_UNAVAILABLE_TYPE(2, 68)
+#else
+# define GLIB_AVAILABLE_IN_2_68                 _GLIB_EXTERN
+# define GLIB_AVAILABLE_STATIC_INLINE_IN_2_68
+# define GLIB_AVAILABLE_MACRO_IN_2_68
+# define GLIB_AVAILABLE_ENUMERATOR_IN_2_68
+# define GLIB_AVAILABLE_TYPE_IN_2_68
 #endif
 
 #endif /*  __G_VERSION_MACROS_H__ */
@@ -2018,6 +2651,20 @@ typedef void            (*GHFunc)               (gpointer       key,
                                                  gpointer       value,
                                                  gpointer       user_data);
 
+/**
+ * GCopyFunc:
+ * @src: (not nullable): A pointer to the data which should be copied
+ * @data: Additional data
+ *
+ * A function of this signature is used to copy the node data
+ * when doing a deep-copy of a tree.
+ *
+ * Returns: (not nullable): A pointer to the copy
+ *
+ * Since: 2.4
+ */
+typedef gpointer	(*GCopyFunc)            (gconstpointer  src,
+                                                 gpointer       data);
 /**
  * GFreeFunc:
  * @data: a data pointer
@@ -2428,16 +3075,16 @@ union _GDoubleIEEE754
 #error unknown ENDIAN type
 #endif /* !G_LITTLE_ENDIAN && !G_BIG_ENDIAN */
 
-typedef struct _GTimeVal                GTimeVal;
+typedef struct _GTimeVal GTimeVal GLIB_DEPRECATED_TYPE_IN_2_62_FOR(GDateTime);
 
 struct _GTimeVal
 {
   glong tv_sec;
   glong tv_usec;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_62_FOR(GDateTime);
 
-typedef gint            grefcount;
-typedef volatile gint   gatomicrefcount;
+typedef gint grefcount;
+typedef gint gatomicrefcount;  /* should be accessed only using atomics */
 
 G_END_DECLS
 
@@ -2451,7 +3098,7 @@ G_END_DECLS
 #    else /* !GLIB_STATIC_COMPILATION */
 #      ifdef GLIB_COMPILATION
 #        ifdef DLL_EXPORT
-#          define GLIB_VAR __declspec(dllexport)
+#          define GLIB_VAR extern __declspec(dllexport)
 #        else /* !DLL_EXPORT */
 #          define GLIB_VAR extern
 #        endif /* !DLL_EXPORT */
@@ -2607,11 +3254,16 @@ GLIB_AVAILABLE_IN_ALL
 GArray* g_array_new               (gboolean          zero_terminated,
 				   gboolean          clear_,
 				   guint             element_size);
+GLIB_AVAILABLE_IN_2_64
+gpointer g_array_steal            (GArray           *array,
+                                   gsize            *len);
 GLIB_AVAILABLE_IN_ALL
 GArray* g_array_sized_new         (gboolean          zero_terminated,
 				   gboolean          clear_,
 				   guint             element_size,
 				   guint             reserved_size);
+GLIB_AVAILABLE_IN_2_62
+GArray* g_array_copy              (GArray           *array);
 GLIB_AVAILABLE_IN_ALL
 gchar*  g_array_free              (GArray           *array,
 				   gboolean          free_segment);
@@ -2654,6 +3306,11 @@ GLIB_AVAILABLE_IN_ALL
 void    g_array_sort_with_data    (GArray           *array,
 				   GCompareDataFunc  compare_func,
 				   gpointer          user_data);
+GLIB_AVAILABLE_IN_2_62
+gboolean g_array_binary_search    (GArray           *array,
+                                   gconstpointer     target,
+                                   GCompareFunc      compare_func,
+                                   guint            *out_match_index);
 GLIB_AVAILABLE_IN_ALL
 void    g_array_set_clear_func    (GArray           *array,
                                    GDestroyNotify    clear_func);
@@ -2667,6 +3324,13 @@ GLIB_AVAILABLE_IN_ALL
 GPtrArray* g_ptr_array_new                (void);
 GLIB_AVAILABLE_IN_ALL
 GPtrArray* g_ptr_array_new_with_free_func (GDestroyNotify    element_free_func);
+GLIB_AVAILABLE_IN_2_64
+gpointer*   g_ptr_array_steal              (GPtrArray        *array,
+                                            gsize            *len);
+GLIB_AVAILABLE_IN_2_62
+GPtrArray *g_ptr_array_copy               (GPtrArray        *array,
+                                           GCopyFunc         func,
+                                           gpointer          user_data);
 GLIB_AVAILABLE_IN_ALL
 GPtrArray* g_ptr_array_sized_new          (guint             reserved_size);
 GLIB_AVAILABLE_IN_ALL
@@ -2710,6 +3374,14 @@ GPtrArray *g_ptr_array_remove_range       (GPtrArray        *array,
 GLIB_AVAILABLE_IN_ALL
 void       g_ptr_array_add                (GPtrArray        *array,
 					   gpointer          data);
+GLIB_AVAILABLE_IN_2_62
+void g_ptr_array_extend                   (GPtrArray        *array_to_extend,
+                                           GPtrArray        *array,
+                                           GCopyFunc         func,
+                                           gpointer          user_data);
+GLIB_AVAILABLE_IN_2_62
+void g_ptr_array_extend_and_steal         (GPtrArray        *array_to_extend,
+                                           GPtrArray        *array);
 GLIB_AVAILABLE_IN_2_40
 void       g_ptr_array_insert             (GPtrArray        *array,
                                            gint              index_,
@@ -2745,6 +3417,9 @@ GByteArray* g_byte_array_new               (void);
 GLIB_AVAILABLE_IN_ALL
 GByteArray* g_byte_array_new_take          (guint8           *data,
                                             gsize             len);
+GLIB_AVAILABLE_IN_2_64
+guint8*     g_byte_array_steal             (GByteArray       *array,
+                                            gsize            *len);
 GLIB_AVAILABLE_IN_ALL
 GByteArray* g_byte_array_sized_new         (guint             reserved_size);
 GLIB_AVAILABLE_IN_ALL
@@ -2936,92 +3611,234 @@ G_END_DECLS
 #if defined(G_ATOMIC_LOCK_FREE) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)
 
 /* We prefer the new C11-style atomic extension of GCC if available */
-#if defined(__ATOMIC_SEQ_CST) && !defined(__clang__)
-
-/* This assumes sizeof(int) is 4: gatomic.c statically
- * asserts that (using G_STATIC_ASSERT at top-level in a header was
- * problematic, see #730932) */
+#if defined(__ATOMIC_SEQ_CST)
 
 #define g_atomic_int_get(atomic) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    gint gaig_temp;                                                          \
     (void) (0 ? *(atomic) ^ *(atomic) : 1);                                  \
-    (gint) __atomic_load_4 ((atomic), __ATOMIC_SEQ_CST);                     \
+    __atomic_load ((gint *)(atomic), &gaig_temp, __ATOMIC_SEQ_CST);          \
+    (gint) gaig_temp;                                                        \
   }))
 #define g_atomic_int_set(atomic, newval) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    gint gais_temp = (gint) (newval);                                        \
     (void) (0 ? *(atomic) ^ (newval) : 1);                                   \
-    __atomic_store_4 ((atomic), (newval), __ATOMIC_SEQ_CST);                 \
+    __atomic_store ((gint *)(atomic), &gais_temp, __ATOMIC_SEQ_CST);         \
   }))
 
-#if GLIB_SIZEOF_VOID_P == 8
-
+#if defined(glib_typeof)
+#define g_atomic_pointer_get(atomic)                                       \
+  (G_GNUC_EXTENSION ({                                                     \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));               \
+    glib_typeof (*(atomic)) gapg_temp_newval;                              \
+    glib_typeof ((atomic)) gapg_temp_atomic = (atomic);                    \
+    __atomic_load (gapg_temp_atomic, &gapg_temp_newval, __ATOMIC_SEQ_CST); \
+    gapg_temp_newval;                                                      \
+  }))
+#define g_atomic_pointer_set(atomic, newval)                                \
+  (G_GNUC_EXTENSION ({                                                      \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                \
+    glib_typeof ((atomic)) gaps_temp_atomic = (atomic);                     \
+    glib_typeof (*(atomic)) gaps_temp_newval = (newval);                    \
+    (void) (0 ? (gpointer) * (atomic) : NULL);                              \
+    __atomic_store (gaps_temp_atomic, &gaps_temp_newval, __ATOMIC_SEQ_CST); \
+  }))
+#else /* if !defined(glib_typeof) */
 #define g_atomic_pointer_get(atomic) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
-    guint64 gapg_temp = __atomic_load_8 ((atomic), __ATOMIC_SEQ_CST);        \
-    (gpointer) gapg_temp;                                                    \
+    gpointer gapg_temp_newval;                                               \
+    gpointer *gapg_temp_atomic = (gpointer *)(atomic);                       \
+    __atomic_load (gapg_temp_atomic, &gapg_temp_newval, __ATOMIC_SEQ_CST);   \
+    gapg_temp_newval;                                                        \
   }))
 #define g_atomic_pointer_set(atomic, newval) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    gpointer *gaps_temp_atomic = (gpointer *)(atomic);                       \
+    gpointer gaps_temp_newval = (gpointer)(newval);                          \
     (void) (0 ? (gpointer) *(atomic) : NULL);                                \
-    __atomic_store_8 ((atomic), (gsize) (newval), __ATOMIC_SEQ_CST);         \
+    __atomic_store (gaps_temp_atomic, &gaps_temp_newval, __ATOMIC_SEQ_CST);  \
+  }))
+#endif /* !defined(glib_typeof) */
+
+#define g_atomic_int_inc(atomic) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ *(atomic) : 1);                                  \
+    (void) __atomic_fetch_add ((atomic), 1, __ATOMIC_SEQ_CST);               \
+  }))
+#define g_atomic_int_dec_and_test(atomic) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ *(atomic) : 1);                                  \
+    __atomic_fetch_sub ((atomic), 1, __ATOMIC_SEQ_CST) == 1;                 \
+  }))
+#define g_atomic_int_compare_and_exchange(atomic, oldval, newval) \
+  (G_GNUC_EXTENSION ({                                                       \
+    gint gaicae_oldval = (oldval);                                           \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ (newval) ^ (oldval) : 1);                        \
+    __atomic_compare_exchange_n ((atomic), &gaicae_oldval, (newval), FALSE, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? TRUE : FALSE; \
+  }))
+#define g_atomic_int_add(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ (val) : 1);                                      \
+    (gint) __atomic_fetch_add ((atomic), (val), __ATOMIC_SEQ_CST);           \
+  }))
+#define g_atomic_int_and(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ (val) : 1);                                      \
+    (guint) __atomic_fetch_and ((atomic), (val), __ATOMIC_SEQ_CST);          \
+  }))
+#define g_atomic_int_or(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ (val) : 1);                                      \
+    (guint) __atomic_fetch_or ((atomic), (val), __ATOMIC_SEQ_CST);           \
+  }))
+#define g_atomic_int_xor(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
+    (void) (0 ? *(atomic) ^ (val) : 1);                                      \
+    (guint) __atomic_fetch_xor ((atomic), (val), __ATOMIC_SEQ_CST);          \
   }))
 
-#else /* GLIB_SIZEOF_VOID_P == 8 */
-
-/* This assumes that if sizeof(void *) is not 8, then it is 4:
- * gatomic.c statically asserts that (using G_STATIC_ASSERT
- * at top-level in a header was problematic, see #730932) */
-
-#define g_atomic_pointer_get(atomic) \
+#if defined(glib_typeof)
+#define g_atomic_pointer_compare_and_exchange(atomic, oldval, newval) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof (oldval) == sizeof (gpointer));                  \
+    glib_typeof ((oldval)) gapcae_oldval = (oldval);                         \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    __atomic_compare_exchange_n ((atomic), &gapcae_oldval, (newval), FALSE, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? TRUE : FALSE; \
+  }))
+#else /* if !defined(glib_typeof) */
+#define g_atomic_pointer_compare_and_exchange(atomic, oldval, newval) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof (oldval) == sizeof (gpointer));                  \
+    gpointer gapcae_oldval = (gpointer)(oldval);                             \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    __atomic_compare_exchange_n ((atomic), &gapcae_oldval, (newval), FALSE, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? TRUE : FALSE; \
+  }))
+#endif /* defined(glib_typeof) */
+#define g_atomic_pointer_add(atomic, val) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
-    guint32 gapg_temp = __atomic_load_4 ((atomic), __ATOMIC_SEQ_CST);        \
-    (gpointer) gapg_temp;                                                    \
-  }))
-#define g_atomic_pointer_set(atomic, newval) \
-  (G_GNUC_EXTENSION ({                                                       \
-    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
     (void) (0 ? (gpointer) *(atomic) : NULL);                                \
-    __atomic_store_4 ((atomic), (gsize) (newval), __ATOMIC_SEQ_CST);         \
+    (void) (0 ? (val) ^ (val) : 1);                                          \
+    (gssize) __atomic_fetch_add ((atomic), (val), __ATOMIC_SEQ_CST);         \
   }))
-
-#endif /* GLIB_SIZEOF_VOID_P == 8 */
+#define g_atomic_pointer_and(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    gsize *gapa_atomic = (gsize *) (atomic);                                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gsize));                    \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    (void) (0 ? (val) ^ (val) : 1);                                          \
+    (gsize) __atomic_fetch_and (gapa_atomic, (val), __ATOMIC_SEQ_CST);       \
+  }))
+#define g_atomic_pointer_or(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    gsize *gapo_atomic = (gsize *) (atomic);                                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gsize));                    \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    (void) (0 ? (val) ^ (val) : 1);                                          \
+    (gsize) __atomic_fetch_or (gapo_atomic, (val), __ATOMIC_SEQ_CST);        \
+  }))
+#define g_atomic_pointer_xor(atomic, val) \
+  (G_GNUC_EXTENSION ({                                                       \
+    gsize *gapx_atomic = (gsize *) (atomic);                                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gsize));                    \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    (void) (0 ? (val) ^ (val) : 1);                                          \
+    (gsize) __atomic_fetch_xor (gapx_atomic, (val), __ATOMIC_SEQ_CST);       \
+  }))
 
 #else /* defined(__ATOMIC_SEQ_CST) */
 
+/* We want to achieve __ATOMIC_SEQ_CST semantics here. See
+ * https://en.cppreference.com/w/c/atomic/memory_order#Constants. For load
+ * operations, that means performing an *acquire*:
+ * > A load operation with this memory order performs the acquire operation on
+ * > the affected memory location: no reads or writes in the current thread can
+ * > be reordered before this load. All writes in other threads that release
+ * > the same atomic variable are visible in the current thread.
+ *
+ * “no reads or writes in the current thread can be reordered before this load”
+ * is implemented using a compiler barrier (a no-op `__asm__` section) to
+ * prevent instruction reordering. Writes in other threads are synchronised
+ * using `__sync_synchronize()`. It’s unclear from the GCC documentation whether
+ * `__sync_synchronize()` acts as a compiler barrier, hence our explicit use of
+ * one.
+ *
+ * For store operations, `__ATOMIC_SEQ_CST` means performing a *release*:
+ * > A store operation with this memory order performs the release operation:
+ * > no reads or writes in the current thread can be reordered after this store.
+ * > All writes in the current thread are visible in other threads that acquire
+ * > the same atomic variable (see Release-Acquire ordering below) and writes
+ * > that carry a dependency into the atomic variable become visible in other
+ * > threads that consume the same atomic (see Release-Consume ordering below).
+ *
+ * “no reads or writes in the current thread can be reordered after this store”
+ * is implemented using a compiler barrier to prevent instruction reordering.
+ * “All writes in the current thread are visible in other threads” is implemented
+ * using `__sync_synchronize()`; similarly for “writes that carry a dependency”.
+ */
 #define g_atomic_int_get(atomic) \
   (G_GNUC_EXTENSION ({                                                       \
+    gint gaig_result;                                                        \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
     (void) (0 ? *(atomic) ^ *(atomic) : 1);                                  \
+    gaig_result = (gint) *(atomic);                                          \
     __sync_synchronize ();                                                   \
-    (gint) *(atomic);                                                        \
+    __asm__ __volatile__ ("" : : : "memory");                                \
+    gaig_result;                                                             \
   }))
 #define g_atomic_int_set(atomic, newval) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gint));                     \
     (void) (0 ? *(atomic) ^ (newval) : 1);                                   \
-    *(atomic) = (newval);                                                    \
     __sync_synchronize ();                                                   \
+    __asm__ __volatile__ ("" : : : "memory");                                \
+    *(atomic) = (newval);                                                    \
   }))
 #define g_atomic_pointer_get(atomic) \
   (G_GNUC_EXTENSION ({                                                       \
+    gpointer gapg_result;                                                    \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    gapg_result = (gpointer) *(atomic);                                      \
     __sync_synchronize ();                                                   \
-    (gpointer) *(atomic);                                                    \
+    __asm__ __volatile__ ("" : : : "memory");                                \
+    gapg_result;                                                             \
   }))
+#if defined(glib_typeof)
 #define g_atomic_pointer_set(atomic, newval) \
   (G_GNUC_EXTENSION ({                                                       \
     G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
     (void) (0 ? (gpointer) *(atomic) : NULL);                                \
-    *(atomic) = (__typeof__ (*(atomic))) (gsize) (newval);                   \
     __sync_synchronize ();                                                   \
+    __asm__ __volatile__ ("" : : : "memory");                                \
+    *(atomic) = (glib_typeof (*(atomic))) (gsize) (newval);                  \
   }))
-
-#endif /* !defined(__ATOMIC_SEQ_CST) */
+#else /* if !defined(glib_typeof) */
+#define g_atomic_pointer_set(atomic, newval) \
+  (G_GNUC_EXTENSION ({                                                       \
+    G_STATIC_ASSERT (sizeof *(atomic) == sizeof (gpointer));                 \
+    (void) (0 ? (gpointer) *(atomic) : NULL);                                \
+    __sync_synchronize ();                                                   \
+    __asm__ __volatile__ ("" : : : "memory");                                \
+    *(atomic) = (gpointer) (gsize) (newval);                                         \
+  }))
+#endif /* defined(glib_typeof) */
 
 #define g_atomic_int_inc(atomic) \
   (G_GNUC_EXTENSION ({                                                       \
@@ -3101,6 +3918,8 @@ G_END_DECLS
     (gsize) __sync_fetch_and_xor ((atomic), (val));                          \
   }))
 
+#endif /* !defined(__ATOMIC_SEQ_CST) */
+
 #else /* defined(G_ATOMIC_LOCK_FREE) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4) */
 
 #define g_atomic_int_get(atomic) \
@@ -3137,7 +3956,7 @@ G_END_DECLS
 #define g_atomic_pointer_xor(atomic, val) \
   (g_atomic_pointer_xor ((atomic), (gsize) (val)))
 
-#endif /* defined(__GNUC__) && defined(G_ATOMIC_OP_USE_GCC_BUILTINS) */
+#endif /* defined(G_ATOMIC_LOCK_FREE) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4) */
 
 #endif /* __G_ATOMIC_H__ */
 /* gerror.h - Error reporting system
@@ -3389,6 +4208,129 @@ GLIB_AVAILABLE_IN_ALL
 const gchar *         g_get_application_name (void);
 GLIB_AVAILABLE_IN_ALL
 void                  g_set_application_name (const gchar *application_name);
+GLIB_AVAILABLE_IN_2_64
+gchar *               g_get_os_info          (const gchar *key_name);
+
+/**
+ * G_OS_INFO_KEY_NAME:
+ *
+ * A key to get the name of the operating system excluding version information suitable for presentation to the user, e.g. "YoYoOS"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_NAME \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "NAME"
+
+/**
+ * G_OS_INFO_KEY_PRETTY_NAME:
+ *
+ * A key to get the name of the operating system in a format suitable for presentation to the user, e.g. "YoYoOS Foo"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_PRETTY_NAME \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "PRETTY_NAME"
+
+/**
+ * G_OS_INFO_KEY_VERSION:
+ *
+ * A key to get the operating system version suitable for presentation to the user, e.g. "42 (Foo)"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_VERSION \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "VERSION"
+
+/**
+ * G_OS_INFO_KEY_VERSION_CODENAME:
+ *
+ * A key to get a codename identifying the operating system release suitable for processing by scripts or usage in generated filenames, e.g. "foo"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_VERSION_CODENAME \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "VERSION_CODENAME"
+
+/**
+ * G_OS_INFO_KEY_VERSION_ID:
+ *
+ * A key to get the version of the operating system suitable for processing by scripts or usage in generated filenames, e.g. "42"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_VERSION_ID \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "VERSION_ID"
+
+/**
+ * G_OS_INFO_KEY_ID:
+ *
+ * A key to get an ID identifying the operating system suitable for processing by scripts or usage in generated filenames, e.g. "yoyoos"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_ID \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "ID"
+
+/**
+ * G_OS_INFO_KEY_HOME_URL:
+ *
+ * A key to get the homepage for the operating system, e.g. "https://www.yoyo-os.com/"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_HOME_URL \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "HOME_URL"
+
+/**
+ * G_OS_INFO_KEY_DOCUMENTATION_URL:
+ *
+ * A key to get the documentation page for the operating system, e.g. "https://docs.yoyo-os.com/"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_DOCUMENTATION_URL \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "DOCUMENTATION_URL"
+
+/**
+ * G_OS_INFO_KEY_SUPPORT_URL:
+ *
+ * A key to get the support page for the operating system, e.g. "https://support.yoyo-os.com/"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_SUPPORT_URL \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "SUPPORT_URL"
+
+/**
+ * G_OS_INFO_KEY_BUG_REPORT_URL:
+ *
+ * A key to get the bug reporting page for the operating system, e.g. "https://bugs.yoyo-os.com/"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_BUG_REPORT_URL \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "BUG_REPORT_URL"
+
+/**
+ * G_OS_INFO_KEY_PRIVACY_POLICY_URL:
+ *
+ * A key to get the privacy policy for the operating system, e.g. "https://privacy.yoyo-os.com/"
+ *
+ * Since: 2.64
+ */
+#define G_OS_INFO_KEY_PRIVACY_POLICY_URL \
+    GLIB_AVAILABLE_MACRO_IN_2_64 \
+    "PRIVACY_POLICY_URL"
 
 GLIB_AVAILABLE_IN_ALL
 void      g_reload_user_special_dirs_cache     (void);
@@ -3518,7 +4460,10 @@ gchar *g_format_size        (guint64          size);
 GLIB_DEPRECATED_IN_2_30_FOR(g_format_size)
 gchar *g_format_size_for_display (goffset size);
 
-#ifndef G_DISABLE_DEPRECATED
+#define g_ATEXIT(proc)	(atexit (proc)) GLIB_DEPRECATED_MACRO_IN_2_32
+#define g_memmove(dest,src,len) \
+  G_STMT_START { memmove ((dest), (src), (len)); } G_STMT_END  GLIB_DEPRECATED_MACRO_IN_2_40_FOR(memmove)
+
 /**
  * GVoidFunc:
  *
@@ -3526,10 +4471,13 @@ gchar *g_format_size_for_display (goffset size);
  * and has no return value. It is used to specify the type
  * function passed to g_atexit().
  */
-typedef void (*GVoidFunc) (void);
-#define ATEXIT(proc) g_ATEXIT(proc)
+typedef void (*GVoidFunc) (void) GLIB_DEPRECATED_TYPE_IN_2_32;
+#define ATEXIT(proc) g_ATEXIT(proc) GLIB_DEPRECATED_MACRO_IN_2_32
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED
 void	g_atexit		(GVoidFunc    func);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 #ifdef G_OS_WIN32
 /* It's a bad idea to wrap atexit() on Windows. If the GLib DLL calls
@@ -3541,9 +4489,7 @@ void	g_atexit		(GVoidFunc    func);
 #if (defined(__MINGW_H) && !defined(_STDLIB_H_)) || (defined(_MSC_VER) && !defined(_INC_STDLIB))
 int atexit (void (*)(void));
 #endif
-#define g_atexit(func) atexit(func)
-#endif
-
+#define g_atexit(func) atexit(func) GLIB_DEPRECATED_MACRO_IN_2_32
 #endif
 
 
@@ -3631,11 +4577,9 @@ g_bit_storage_impl (gulong number)
 #  define g_abort() abort ()
 #else
 GLIB_AVAILABLE_IN_2_50
-void g_abort (void) G_GNUC_NORETURN G_ANALYZER_NORETURN;
+G_NORETURN void g_abort (void) G_ANALYZER_NORETURN;
 #endif
 #endif
-
-#ifndef G_DISABLE_DEPRECATED
 
 /*
  * This macro is deprecated. This DllMain() is too complex. It is
@@ -3655,7 +4599,7 @@ void g_abort (void) G_GNUC_NORETURN G_ANALYZER_NORETURN;
  */
 
 #ifndef G_PLATFORM_WIN32
-# define G_WIN32_DLLMAIN_FOR_DLL_NAME(static, dll_name)
+# define G_WIN32_DLLMAIN_FOR_DLL_NAME(static, dll_name) GLIB_DEPRECATED_MACRO_IN_2_26
 #else
 # define G_WIN32_DLLMAIN_FOR_DLL_NAME(static, dll_name)			\
 static char *dll_name;							\
@@ -3678,10 +4622,7 @@ DllMain (HINSTANCE hinstDLL,						\
     }									\
 									\
   return TRUE;								\
-}
-
-#endif	/* !G_DISABLE_DEPRECATED */
-
+} GLIB_DEPRECATED_MACRO_IN_2_26
 #endif /* G_PLATFORM_WIN32 */
 
 G_END_DECLS
@@ -3813,12 +4754,12 @@ struct _GOnce
 #endif /* !G_DEBUG_LOCKS */
 
 GLIB_VAR GThreadCallbacks *glib_thread_callbacks;
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void            g_thread_set_callbacks          (GThreadCallbacks *callbacks);
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void            g_thread_set_garbage_handler    (GThreadGarbageHandler handler,
                                                  gpointer user_data);
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 gboolean        g_thread_garbage_collect        (void);
 
 GLIB_AVAILABLE_IN_2_32
@@ -3918,27 +4859,36 @@ GLIB_AVAILABLE_IN_ALL
 void            g_once_init_leave               (volatile void  *location,
                                                  gsize           result);
 
-#ifdef G_ATOMIC_OP_MEMORY_BARRIER_NEEDED
-# define g_once(once, func, arg) g_once_impl ((once), (func), (arg))
-#else /* !G_ATOMIC_OP_MEMORY_BARRIER_NEEDED*/
+/* Use C11-style atomic extensions to check the fast path for status=ready. If
+ * they are not available, fall back to using a mutex and condition variable in
+ * g_once_impl().
+ *
+ * On the C11-style codepath, only the load of once->status needs to be atomic,
+ * as the writes to it and once->retval in g_once_impl() are related by a
+ * happens-before relation. Release-acquire semantics are defined such that any
+ * atomic/non-atomic write which happens-before a store/release is guaranteed to
+ * be seen by the load/acquire of the same atomic variable. */
+#if defined(G_ATOMIC_LOCK_FREE) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4) && defined(__ATOMIC_SEQ_CST)
 # define g_once(once, func, arg) \
-  (((once)->status == G_ONCE_STATUS_READY) ? \
+  ((__atomic_load_n (&(once)->status, __ATOMIC_ACQUIRE) == G_ONCE_STATUS_READY) ? \
    (once)->retval : \
    g_once_impl ((once), (func), (arg)))
-#endif /* G_ATOMIC_OP_MEMORY_BARRIER_NEEDED */
+#else
+# define g_once(once, func, arg) g_once_impl ((once), (func), (arg))
+#endif
 
 #ifdef __GNUC__
 # define g_once_init_enter(location) \
   (G_GNUC_EXTENSION ({                                               \
     G_STATIC_ASSERT (sizeof *(location) == sizeof (gpointer));       \
-    (void) (0 ? (gpointer) *(location) : 0);                         \
+    (void) (0 ? (gpointer) *(location) : NULL);                      \
     (!g_atomic_pointer_get (location) &&                             \
      g_once_init_enter (location));                                  \
   }))
 # define g_once_init_leave(location, result) \
   (G_GNUC_EXTENSION ({                                               \
     G_STATIC_ASSERT (sizeof *(location) == sizeof (gpointer));       \
-    (void) (0 ? *(location) = (result) : 0);                         \
+    0 ? (void) (*(location) = (result)) : (void) 0;                  \
     g_once_init_leave ((location), (gsize) (result));                \
   }))
 #else
@@ -3966,6 +4916,8 @@ typedef void GMutexLocker;
  * Lock @mutex and return a new #GMutexLocker. Unlock with
  * g_mutex_locker_free(). Using g_mutex_unlock() on @mutex
  * while a #GMutexLocker exists can lead to undefined behaviour.
+ *
+ * No allocation is performed, it is equivalent to a g_mutex_lock() call.
  *
  * This is intended to be used with g_autoptr().  Note that g_autoptr()
  * is only available when using GCC or clang, so the following example
@@ -3999,6 +4951,7 @@ typedef void GMutexLocker;
  * Returns: a #GMutexLocker
  * Since: 2.44
  */
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_44
 static inline GMutexLocker *
 g_mutex_locker_new (GMutex *mutex)
 {
@@ -4012,8 +4965,11 @@ g_mutex_locker_new (GMutex *mutex)
  *
  * Unlock @locker's mutex. See g_mutex_locker_new() for details.
  *
+ * No memory is freed, it is equivalent to a g_mutex_unlock() call.
+ *
  * Since: 2.44
  */
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_44
 static inline void
 g_mutex_locker_free (GMutexLocker *locker)
 {
@@ -4035,6 +4991,8 @@ typedef void GRecMutexLocker;
  * Lock @rec_mutex and return a new #GRecMutexLocker. Unlock with
  * g_rec_mutex_locker_free(). Using g_rec_mutex_unlock() on @rec_mutex
  * while a #GRecMutexLocker exists can lead to undefined behaviour.
+ *
+ * No allocation is performed, it is equivalent to a g_rec_mutex_lock() call.
  *
  * This is intended to be used with g_autoptr().  Note that g_autoptr()
  * is only available when using GCC or clang, so the following example
@@ -4068,12 +5026,15 @@ typedef void GRecMutexLocker;
  * Returns: a #GRecMutexLocker
  * Since: 2.60
  */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_60
 static inline GRecMutexLocker *
 g_rec_mutex_locker_new (GRecMutex *rec_mutex)
 {
   g_rec_mutex_lock (rec_mutex);
   return (GRecMutexLocker *) rec_mutex;
 }
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 /**
  * g_rec_mutex_locker_free:
@@ -4081,13 +5042,184 @@ g_rec_mutex_locker_new (GRecMutex *rec_mutex)
  *
  * Unlock @locker's recursive mutex. See g_rec_mutex_locker_new() for details.
  *
+ * No memory is freed, it is equivalent to a g_rec_mutex_unlock() call.
+ *
  * Since: 2.60
  */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_60
 static inline void
 g_rec_mutex_locker_free (GRecMutexLocker *locker)
 {
   g_rec_mutex_unlock ((GRecMutex *) locker);
 }
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+/**
+ * GRWLockWriterLocker:
+ *
+ * Opaque type. See g_rw_lock_writer_locker_new() for details.
+ * Since: 2.62
+ */
+typedef void GRWLockWriterLocker;
+
+/**
+ * g_rw_lock_writer_locker_new:
+ * @rw_lock: a #GRWLock
+ *
+ * Obtain a write lock on @rw_lock and return a new #GRWLockWriterLocker.
+ * Unlock with g_rw_lock_writer_locker_free(). Using g_rw_lock_writer_unlock()
+ * on @rw_lock while a #GRWLockWriterLocker exists can lead to undefined
+ * behaviour.
+ *
+ * No allocation is performed, it is equivalent to a g_rw_lock_writer_lock() call.
+ *
+ * This is intended to be used with g_autoptr().  Note that g_autoptr()
+ * is only available when using GCC or clang, so the following example
+ * will only work with those compilers:
+ * |[
+ * typedef struct
+ * {
+ *   ...
+ *   GRWLock rw_lock;
+ *   GPtrArray *array;
+ *   ...
+ * } MyObject;
+ *
+ * static gchar *
+ * my_object_get_data (MyObject *self, guint index)
+ * {
+ *   g_autoptr(GRWLockReaderLocker) locker = g_rw_lock_reader_locker_new (&self->rw_lock);
+ *
+ *   // Code with a read lock obtained on rw_lock here
+ *
+ *   if (self->array == NULL)
+ *     // No need to unlock
+ *     return NULL;
+ *
+ *   if (index < self->array->len)
+ *     // No need to unlock
+ *     return g_ptr_array_index (self->array, index);
+ *
+ *   // Optionally early unlock
+ *   g_clear_pointer (&locker, g_rw_lock_reader_locker_free);
+ *
+ *   // Code with rw_lock unlocked here
+ *   return NULL;
+ * }
+ *
+ * static void
+ * my_object_set_data (MyObject *self, guint index, gpointer data)
+ * {
+ *   g_autoptr(GRWLockWriterLocker) locker = g_rw_lock_writer_locker_new (&self->rw_lock);
+ *
+ *   // Code with a write lock obtained on rw_lock here
+ *
+ *   if (self->array == NULL)
+ *     self->array = g_ptr_array_new ();
+ *
+ *   if (cond)
+ *     // No need to unlock
+ *     return;
+ *
+ *   if (index >= self->array->len)
+ *     g_ptr_array_set_size (self->array, index+1);
+ *   g_ptr_array_index (self->array, index) = data;
+ *
+ *   // Optionally early unlock
+ *   g_clear_pointer (&locker, g_rw_lock_writer_locker_free);
+ *
+ *   // Code with rw_lock unlocked here
+ * }
+ * ]|
+ *
+ * Returns: a #GRWLockWriterLocker
+ * Since: 2.62
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_62
+static inline GRWLockWriterLocker *
+g_rw_lock_writer_locker_new (GRWLock *rw_lock)
+{
+  g_rw_lock_writer_lock (rw_lock);
+  return (GRWLockWriterLocker *) rw_lock;
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+/**
+ * g_rw_lock_writer_locker_free:
+ * @locker: a GRWLockWriterLocker
+ *
+ * Release a write lock on @locker's read-write lock. See
+ * g_rw_lock_writer_locker_new() for details.
+ *
+ * No memory is freed, it is equivalent to a g_rw_lock_writer_unlock() call.
+ *
+ * Since: 2.62
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_62
+static inline void
+g_rw_lock_writer_locker_free (GRWLockWriterLocker *locker)
+{
+  g_rw_lock_writer_unlock ((GRWLock *) locker);
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+/**
+ * GRWLockReaderLocker:
+ *
+ * Opaque type. See g_rw_lock_reader_locker_new() for details.
+ * Since: 2.62
+ */
+typedef void GRWLockReaderLocker;
+
+/**
+ * g_rw_lock_reader_locker_new:
+ * @rw_lock: a #GRWLock
+ *
+ * Obtain a read lock on @rw_lock and return a new #GRWLockReaderLocker.
+ * Unlock with g_rw_lock_reader_locker_free(). Using g_rw_lock_reader_unlock()
+ * on @rw_lock while a #GRWLockReaderLocker exists can lead to undefined
+ * behaviour.
+ *
+ * No allocation is performed, it is equivalent to a g_rw_lock_reader_lock() call.
+ *
+ * This is intended to be used with g_autoptr(). For a code sample, see
+ * g_rw_lock_writer_locker_new().
+ *
+ * Returns: a #GRWLockReaderLocker
+ * Since: 2.62
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_62
+static inline GRWLockReaderLocker *
+g_rw_lock_reader_locker_new (GRWLock *rw_lock)
+{
+  g_rw_lock_reader_lock (rw_lock);
+  return (GRWLockReaderLocker *) rw_lock;
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+/**
+ * g_rw_lock_reader_locker_free:
+ * @locker: a GRWLockReaderLocker
+ *
+ * Release a read lock on @locker's read-write lock. See
+ * g_rw_lock_reader_locker_new() for details.
+ *
+ * No memory is freed, it is equivalent to a g_rw_lock_reader_unlock() call.
+ *
+ * Since: 2.62
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_62
+static inline void
+g_rw_lock_reader_locker_free (GRWLockReaderLocker *locker)
+{
+  g_rw_lock_reader_unlock ((GRWLock *) locker);
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -4172,12 +5304,14 @@ GLIB_AVAILABLE_IN_2_46
 void         g_async_queue_push_front_unlocked  (GAsyncQueue      *queue,
                                                  gpointer          item);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED_FOR(g_async_queue_timeout_pop)
 gpointer     g_async_queue_timed_pop            (GAsyncQueue      *queue,
                                                  GTimeVal         *end_time);
 GLIB_DEPRECATED_FOR(g_async_queue_timeout_pop_unlocked)
 gpointer     g_async_queue_timed_pop_unlocked   (GAsyncQueue      *queue,
                                                  GTimeVal         *end_time);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -4244,7 +5378,7 @@ void g_on_error_stack_trace (const gchar *prg_name);
 #  define G_BREAKPOINT()        G_STMT_START{ __debugbreak(); }G_STMT_END
 #elif defined (__alpha__) && !defined(__osf__) && defined (__GNUC__) && __GNUC__ >= 2
 #  define G_BREAKPOINT()        G_STMT_START{ __asm__ __volatile__ ("bpt"); }G_STMT_END
-#elif defined (__APPLE__)
+#elif defined (__APPLE__) || (defined(_WIN32) && (defined(__clang__) || defined(__GNUC__)))
 #  define G_BREAKPOINT()        G_STMT_START{ __builtin_trap(); }G_STMT_END
 #else   /* !__i386__ && !__alpha__ */
 #  define G_BREAKPOINT()        G_STMT_START{ raise (SIGTRAP); }G_STMT_END
@@ -4413,6 +5547,373 @@ G_END_DECLS
 #error "Only <glib.h> can be included directly."
 #endif
 
+/*
+ * Copyright (C) 2009-2010 Christian Hergert <chris@dronelabs.com>
+ * Copyright © 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of the
+ * licence, or (at your option) any later version.
+ *
+ * This is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Hergert <chris@dronelabs.com>
+ *          Thiago Santos <thiago.sousa.santos@collabora.co.uk>
+ *          Emmanuele Bassi <ebassi@linux.intel.com>
+ *          Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_DATE_TIME_H__
+#define __G_DATE_TIME_H__
+
+#if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
+#error "Only <glib.h> can be included directly."
+#endif
+
+/*
+ * Copyright © 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_TIME_ZONE_H__
+#define __G_TIME_ZONE_H__
+
+#if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
+#error "Only <glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+typedef struct _GTimeZone GTimeZone;
+
+/**
+ * GTimeType:
+ * @G_TIME_TYPE_STANDARD: the time is in local standard time
+ * @G_TIME_TYPE_DAYLIGHT: the time is in local daylight time
+ * @G_TIME_TYPE_UNIVERSAL: the time is in UTC
+ *
+ * Disambiguates a given time in two ways.
+ *
+ * First, specifies if the given time is in universal or local time.
+ *
+ * Second, if the time is in local time, specifies if it is local
+ * standard time or local daylight time.  This is important for the case
+ * where the same local time occurs twice (during daylight savings time
+ * transitions, for example).
+ */
+typedef enum
+{
+  G_TIME_TYPE_STANDARD,
+  G_TIME_TYPE_DAYLIGHT,
+  G_TIME_TYPE_UNIVERSAL
+} GTimeType;
+
+GLIB_DEPRECATED_IN_2_68_FOR (g_time_zone_new_identifier)
+GTimeZone *             g_time_zone_new                                 (const gchar *identifier);
+GLIB_AVAILABLE_IN_2_68
+GTimeZone *             g_time_zone_new_identifier                      (const gchar *identifier);
+GLIB_AVAILABLE_IN_ALL
+GTimeZone *             g_time_zone_new_utc                             (void);
+GLIB_AVAILABLE_IN_ALL
+GTimeZone *             g_time_zone_new_local                           (void);
+GLIB_AVAILABLE_IN_2_58
+GTimeZone *             g_time_zone_new_offset                          (gint32       seconds);
+
+GLIB_AVAILABLE_IN_ALL
+GTimeZone *             g_time_zone_ref                                 (GTimeZone   *tz);
+GLIB_AVAILABLE_IN_ALL
+void                    g_time_zone_unref                               (GTimeZone   *tz);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_time_zone_find_interval                       (GTimeZone   *tz,
+                                                                         GTimeType    type,
+                                                                         gint64       time_);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_time_zone_adjust_time                         (GTimeZone   *tz,
+                                                                         GTimeType    type,
+                                                                         gint64      *time_);
+
+GLIB_AVAILABLE_IN_ALL
+const gchar *           g_time_zone_get_abbreviation                    (GTimeZone   *tz,
+                                                                         gint         interval);
+GLIB_AVAILABLE_IN_ALL
+gint32                  g_time_zone_get_offset                          (GTimeZone   *tz,
+                                                                         gint         interval);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_time_zone_is_dst                              (GTimeZone   *tz,
+                                                                         gint         interval);
+GLIB_AVAILABLE_IN_2_58
+const gchar *           g_time_zone_get_identifier                      (GTimeZone   *tz);
+
+G_END_DECLS
+
+#endif /* __G_TIME_ZONE_H__ */
+
+G_BEGIN_DECLS
+
+/**
+ * G_TIME_SPAN_DAY:
+ *
+ * Evaluates to a time span of one day.
+ *
+ * Since: 2.26
+ */
+#define G_TIME_SPAN_DAY                 (G_GINT64_CONSTANT (86400000000))
+
+/**
+ * G_TIME_SPAN_HOUR:
+ *
+ * Evaluates to a time span of one hour.
+ *
+ * Since: 2.26
+ */
+#define G_TIME_SPAN_HOUR                (G_GINT64_CONSTANT (3600000000))
+
+/**
+ * G_TIME_SPAN_MINUTE:
+ *
+ * Evaluates to a time span of one minute.
+ *
+ * Since: 2.26
+ */
+#define G_TIME_SPAN_MINUTE              (G_GINT64_CONSTANT (60000000))
+
+/**
+ * G_TIME_SPAN_SECOND:
+ *
+ * Evaluates to a time span of one second.
+ *
+ * Since: 2.26
+ */
+#define G_TIME_SPAN_SECOND              (G_GINT64_CONSTANT (1000000))
+
+/**
+ * G_TIME_SPAN_MILLISECOND:
+ *
+ * Evaluates to a time span of one millisecond.
+ *
+ * Since: 2.26
+ */
+#define G_TIME_SPAN_MILLISECOND         (G_GINT64_CONSTANT (1000))
+
+/**
+ * GTimeSpan:
+ *
+ * A value representing an interval of time, in microseconds.
+ *
+ * Since: 2.26
+ */
+typedef gint64 GTimeSpan;
+
+/**
+ * GDateTime:
+ *
+ * `GDateTime` is an opaque structure whose members
+ * cannot be accessed directly.
+ *
+ * Since: 2.26
+ */
+typedef struct _GDateTime GDateTime;
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_date_time_unref                               (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_ref                                 (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_now                             (GTimeZone      *tz);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_now_local                       (void);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_now_utc                         (void);
+
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_from_unix_local                 (gint64          t);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_from_unix_utc                   (gint64          t);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_time_new_from_unix_local)
+GDateTime *             g_date_time_new_from_timeval_local              (const GTimeVal *tv);
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_time_new_from_unix_utc)
+GDateTime *             g_date_time_new_from_timeval_utc                (const GTimeVal *tv);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+GLIB_AVAILABLE_IN_2_56
+GDateTime *             g_date_time_new_from_iso8601                    (const gchar    *text,
+                                                                         GTimeZone      *default_tz);
+
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new                                 (GTimeZone      *tz,
+                                                                         gint            year,
+                                                                         gint            month,
+                                                                         gint            day,
+                                                                         gint            hour,
+                                                                         gint            minute,
+                                                                         gdouble         seconds);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_local                           (gint            year,
+                                                                         gint            month,
+                                                                         gint            day,
+                                                                         gint            hour,
+                                                                         gint            minute,
+                                                                         gdouble         seconds);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_new_utc                             (gint            year,
+                                                                         gint            month,
+                                                                         gint            day,
+                                                                         gint            hour,
+                                                                         gint            minute,
+                                                                         gdouble         seconds);
+
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add                                 (GDateTime      *datetime,
+                                                                         GTimeSpan       timespan);
+
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_years                           (GDateTime      *datetime,
+                                                                         gint            years);
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_months                          (GDateTime      *datetime,
+                                                                         gint            months);
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_weeks                           (GDateTime      *datetime,
+                                                                         gint            weeks);
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_days                            (GDateTime      *datetime,
+                                                                         gint            days);
+
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_hours                           (GDateTime      *datetime,
+                                                                         gint            hours);
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_minutes                         (GDateTime      *datetime,
+                                                                         gint            minutes);
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_seconds                         (GDateTime      *datetime,
+                                                                         gdouble         seconds);
+
+GLIB_AVAILABLE_IN_ALL
+G_GNUC_WARN_UNUSED_RESULT
+GDateTime *             g_date_time_add_full                            (GDateTime      *datetime,
+                                                                         gint            years,
+                                                                         gint            months,
+                                                                         gint            days,
+                                                                         gint            hours,
+                                                                         gint            minutes,
+                                                                         gdouble         seconds);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_compare                             (gconstpointer   dt1,
+                                                                         gconstpointer   dt2);
+GLIB_AVAILABLE_IN_ALL
+GTimeSpan               g_date_time_difference                          (GDateTime      *end,
+                                                                         GDateTime      *begin);
+GLIB_AVAILABLE_IN_ALL
+guint                   g_date_time_hash                                (gconstpointer   datetime);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_date_time_equal                               (gconstpointer   dt1,
+                                                                         gconstpointer   dt2);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_date_time_get_ymd                             (GDateTime      *datetime,
+                                                                         gint           *year,
+                                                                         gint           *month,
+                                                                         gint           *day);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_year                            (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_month                           (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_day_of_month                    (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_week_numbering_year             (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_week_of_year                    (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_day_of_week                     (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_day_of_year                     (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_hour                            (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_minute                          (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_second                          (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gint                    g_date_time_get_microsecond                     (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gdouble                 g_date_time_get_seconds                         (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+gint64                  g_date_time_to_unix                             (GDateTime      *datetime);
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_time_to_unix)
+gboolean                g_date_time_to_timeval                          (GDateTime      *datetime,
+                                                                         GTimeVal       *tv);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+GLIB_AVAILABLE_IN_ALL
+GTimeSpan               g_date_time_get_utc_offset                      (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_2_58
+GTimeZone *             g_date_time_get_timezone                        (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+const gchar *           g_date_time_get_timezone_abbreviation           (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_date_time_is_daylight_savings                 (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_to_timezone                         (GDateTime      *datetime,
+                                                                         GTimeZone      *tz);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_to_local                            (GDateTime      *datetime);
+GLIB_AVAILABLE_IN_ALL
+GDateTime *             g_date_time_to_utc                              (GDateTime      *datetime);
+
+GLIB_AVAILABLE_IN_ALL
+gchar *                 g_date_time_format                              (GDateTime      *datetime,
+                                                                         const gchar    *format) G_GNUC_MALLOC;
+GLIB_AVAILABLE_IN_2_62
+gchar *                 g_date_time_format_iso8601                      (GDateTime      *datetime) G_GNUC_MALLOC;
+
+G_END_DECLS
+
+#endif /* __G_DATE_TIME_H__ */
 #include <time.h>
 
 G_BEGIN_DECLS
@@ -4551,7 +6052,7 @@ gchar **       g_bookmark_file_get_applications    (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    gsize          *length,
 						    GError        **error);
-GLIB_AVAILABLE_IN_ALL
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_set_application_info)
 gboolean       g_bookmark_file_set_app_info        (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    const gchar    *name,
@@ -4559,7 +6060,15 @@ gboolean       g_bookmark_file_set_app_info        (GBookmarkFile  *bookmark,
 						    gint            count,
 						    time_t          stamp,
 						    GError        **error);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+gboolean       g_bookmark_file_set_application_info (GBookmarkFile  *bookmark,
+                                                     const char     *uri,
+                                                     const char     *name,
+                                                     const char     *exec,
+                                                     int             count,
+                                                     GDateTime      *stamp,
+                                                     GError        **error);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_get_application_info)
 gboolean       g_bookmark_file_get_app_info        (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    const gchar    *name,
@@ -4567,6 +6076,14 @@ gboolean       g_bookmark_file_get_app_info        (GBookmarkFile  *bookmark,
 						    guint          *count,
 						    time_t         *stamp,
 						    GError        **error);
+GLIB_AVAILABLE_IN_2_66
+gboolean       g_bookmark_file_get_application_info (GBookmarkFile  *bookmark,
+                                                     const char     *uri,
+                                                     const char     *name,
+                                                     char          **exec,
+                                                     unsigned int   *count,
+                                                     GDateTime     **stamp,
+                                                     GError        **error);
 GLIB_AVAILABLE_IN_ALL
 void           g_bookmark_file_set_is_private      (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
@@ -4586,30 +6103,54 @@ gboolean       g_bookmark_file_get_icon            (GBookmarkFile  *bookmark,
 						    gchar         **href,
 						    gchar         **mime_type,
 						    GError        **error);
-GLIB_AVAILABLE_IN_ALL
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_set_added_date_time)
 void           g_bookmark_file_set_added           (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    time_t          added);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+void           g_bookmark_file_set_added_date_time (GBookmarkFile  *bookmark,
+                                                    const char     *uri,
+                                                    GDateTime      *added);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_get_added_date_time)
 time_t         g_bookmark_file_get_added           (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    GError        **error);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+GDateTime     *g_bookmark_file_get_added_date_time (GBookmarkFile  *bookmark,
+                                                    const char     *uri,
+                                                    GError        **error);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_set_modified_date_time)
 void           g_bookmark_file_set_modified        (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    time_t          modified);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+void           g_bookmark_file_set_modified_date_time (GBookmarkFile  *bookmark,
+                                                       const char     *uri,
+                                                       GDateTime      *modified);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_get_modified_date_time)
 time_t         g_bookmark_file_get_modified        (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    GError        **error);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+GDateTime     *g_bookmark_file_get_modified_date_time (GBookmarkFile  *bookmark,
+                                                       const char     *uri,
+                                                       GError        **error);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_set_visited_date_time)
 void           g_bookmark_file_set_visited         (GBookmarkFile  *bookmark,
 						    const gchar    *uri,
 						    time_t          visited);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_66
+void           g_bookmark_file_set_visited_date_time (GBookmarkFile  *bookmark,
+                                                      const char     *uri,
+                                                      GDateTime      *visited);
+GLIB_DEPRECATED_IN_2_66_FOR(g_bookmark_file_get_visited_date_time)
 time_t         g_bookmark_file_get_visited         (GBookmarkFile  *bookmark,
 						    const gchar    *uri, 
 						    GError        **error);
+GLIB_AVAILABLE_IN_2_66
+GDateTime     *g_bookmark_file_get_visited_date_time (GBookmarkFile  *bookmark,
+                                                      const char     *uri,
+                                                      GError        **error);
 GLIB_AVAILABLE_IN_ALL
 gboolean       g_bookmark_file_has_item            (GBookmarkFile  *bookmark,
 						    const gchar    *uri);
@@ -4761,6 +6302,8 @@ GLIB_AVAILABLE_IN_ALL
 gboolean              g_get_charset         (const char **charset);
 GLIB_AVAILABLE_IN_ALL
 gchar *               g_get_codeset         (void);
+GLIB_AVAILABLE_IN_2_62
+gboolean              g_get_console_charset (const char **charset);
 
 GLIB_AVAILABLE_IN_ALL
 const gchar * const * g_get_language_names  (void);
@@ -5244,7 +6787,7 @@ G_BEGIN_DECLS
  * Pennington <hp@pobox.com>
  */
 
-typedef gint32  GTime;
+typedef gint32  GTime GLIB_DEPRECATED_TYPE_IN_2_62_FOR(GDateTime);
 typedef guint16 GDateYear;
 typedef guint8  GDateDay;   /* day of the month */
 typedef struct _GDate GDate;
@@ -5377,7 +6920,7 @@ GLIB_AVAILABLE_IN_ALL
 guint        g_date_get_iso8601_week_of_year (const GDate *date);
 
 /* If you create a static date struct you need to clear it to get it
- * in a sane state before use. You can clear a whole array at
+ * in a safe state before use. You can clear a whole array at
  * once with the ndates argument.
  */
 GLIB_AVAILABLE_IN_ALL
@@ -5394,14 +6937,14 @@ void         g_date_set_parse             (GDate       *date,
 GLIB_AVAILABLE_IN_ALL
 void         g_date_set_time_t            (GDate       *date,
 					   time_t       timet);
-GLIB_AVAILABLE_IN_ALL
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_set_time_t)
 void         g_date_set_time_val          (GDate       *date,
 					   GTimeVal    *timeval);
-#ifndef G_DISABLE_DEPRECATED
 GLIB_DEPRECATED_FOR(g_date_set_time_t)
 void         g_date_set_time              (GDate       *date,
                                            GTime        time_);
-#endif
+G_GNUC_END_IGNORE_DEPRECATIONS
 GLIB_AVAILABLE_IN_ALL
 void         g_date_set_month             (GDate       *date,
                                            GDateMonth   month);
@@ -5489,384 +7032,21 @@ gsize        g_date_strftime              (gchar       *s,
                                            const gchar *format,
                                            const GDate *date);
 
-#ifndef G_DISABLE_DEPRECATED
-
-#define g_date_weekday 			g_date_get_weekday
-#define g_date_month 			g_date_get_month
-#define g_date_year 			g_date_get_year
-#define g_date_day 			g_date_get_day
-#define g_date_julian 			g_date_get_julian
-#define g_date_day_of_year 		g_date_get_day_of_year
-#define g_date_monday_week_of_year 	g_date_get_monday_week_of_year
-#define g_date_sunday_week_of_year 	g_date_get_sunday_week_of_year
-#define g_date_days_in_month 		g_date_get_days_in_month
-#define g_date_monday_weeks_in_year 	g_date_get_monday_weeks_in_year
-#define g_date_sunday_weeks_in_year	g_date_get_sunday_weeks_in_year
-
-#endif /* G_DISABLE_DEPRECATED */
+#define g_date_weekday 			g_date_get_weekday GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_weekday)
+#define g_date_month 			g_date_get_month GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_month)
+#define g_date_year 			g_date_get_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_year)
+#define g_date_day 			g_date_get_day GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_day)
+#define g_date_julian 			g_date_get_julian GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_julian)
+#define g_date_day_of_year 		g_date_get_day_of_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_day_of_year)
+#define g_date_monday_week_of_year 	g_date_get_monday_week_of_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_monday_week_of_year)
+#define g_date_sunday_week_of_year 	g_date_get_sunday_week_of_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_sunday_week_of_year)
+#define g_date_days_in_month 		g_date_get_days_in_month GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_days_in_month)
+#define g_date_monday_weeks_in_year 	g_date_get_monday_weeks_in_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_monday_weeks_in_year)
+#define g_date_sunday_weeks_in_year	g_date_get_sunday_weeks_in_year GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_date_get_sunday_weeks_in_year)
 
 G_END_DECLS
 
 #endif /* __G_DATE_H__ */
-/*
- * Copyright (C) 2009-2010 Christian Hergert <chris@dronelabs.com>
- * Copyright © 2010 Codethink Limited
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * licence, or (at your option) any later version.
- *
- * This is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Christian Hergert <chris@dronelabs.com>
- *          Thiago Santos <thiago.sousa.santos@collabora.co.uk>
- *          Emmanuele Bassi <ebassi@linux.intel.com>
- *          Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_DATE_TIME_H__
-#define __G_DATE_TIME_H__
-
-#if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
-#error "Only <glib.h> can be included directly."
-#endif
-
-/*
- * Copyright © 2010 Codethink Limited
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_TIME_ZONE_H__
-#define __G_TIME_ZONE_H__
-
-#if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
-#error "Only <glib.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-typedef struct _GTimeZone GTimeZone;
-
-/**
- * GTimeType:
- * @G_TIME_TYPE_STANDARD: the time is in local standard time
- * @G_TIME_TYPE_DAYLIGHT: the time is in local daylight time
- * @G_TIME_TYPE_UNIVERSAL: the time is in UTC
- *
- * Disambiguates a given time in two ways.
- *
- * First, specifies if the given time is in universal or local time.
- *
- * Second, if the time is in local time, specifies if it is local
- * standard time or local daylight time.  This is important for the case
- * where the same local time occurs twice (during daylight savings time
- * transitions, for example).
- */
-typedef enum
-{
-  G_TIME_TYPE_STANDARD,
-  G_TIME_TYPE_DAYLIGHT,
-  G_TIME_TYPE_UNIVERSAL
-} GTimeType;
-
-GLIB_AVAILABLE_IN_ALL
-GTimeZone *             g_time_zone_new                                 (const gchar *identifier);
-GLIB_AVAILABLE_IN_ALL
-GTimeZone *             g_time_zone_new_utc                             (void);
-GLIB_AVAILABLE_IN_ALL
-GTimeZone *             g_time_zone_new_local                           (void);
-GLIB_AVAILABLE_IN_2_58
-GTimeZone *             g_time_zone_new_offset                          (gint32       seconds);
-
-GLIB_AVAILABLE_IN_ALL
-GTimeZone *             g_time_zone_ref                                 (GTimeZone   *tz);
-GLIB_AVAILABLE_IN_ALL
-void                    g_time_zone_unref                               (GTimeZone   *tz);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_time_zone_find_interval                       (GTimeZone   *tz,
-                                                                         GTimeType    type,
-                                                                         gint64       time_);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_time_zone_adjust_time                         (GTimeZone   *tz,
-                                                                         GTimeType    type,
-                                                                         gint64      *time_);
-
-GLIB_AVAILABLE_IN_ALL
-const gchar *           g_time_zone_get_abbreviation                    (GTimeZone   *tz,
-                                                                         gint         interval);
-GLIB_AVAILABLE_IN_ALL
-gint32                  g_time_zone_get_offset                          (GTimeZone   *tz,
-                                                                         gint         interval);
-GLIB_AVAILABLE_IN_ALL
-gboolean                g_time_zone_is_dst                              (GTimeZone   *tz,
-                                                                         gint         interval);
-GLIB_AVAILABLE_IN_2_58
-const gchar *           g_time_zone_get_identifier                      (GTimeZone   *tz);
-
-G_END_DECLS
-
-#endif /* __G_TIME_ZONE_H__ */
-
-G_BEGIN_DECLS
-
-/**
- * G_TIME_SPAN_DAY:
- *
- * Evaluates to a time span of one day.
- *
- * Since: 2.26
- */
-#define G_TIME_SPAN_DAY                 (G_GINT64_CONSTANT (86400000000))
-
-/**
- * G_TIME_SPAN_HOUR:
- *
- * Evaluates to a time span of one hour.
- *
- * Since: 2.26
- */
-#define G_TIME_SPAN_HOUR                (G_GINT64_CONSTANT (3600000000))
-
-/**
- * G_TIME_SPAN_MINUTE:
- *
- * Evaluates to a time span of one minute.
- *
- * Since: 2.26
- */
-#define G_TIME_SPAN_MINUTE              (G_GINT64_CONSTANT (60000000))
-
-/**
- * G_TIME_SPAN_SECOND:
- *
- * Evaluates to a time span of one second.
- *
- * Since: 2.26
- */
-#define G_TIME_SPAN_SECOND              (G_GINT64_CONSTANT (1000000))
-
-/**
- * G_TIME_SPAN_MILLISECOND:
- *
- * Evaluates to a time span of one millisecond.
- *
- * Since: 2.26
- */
-#define G_TIME_SPAN_MILLISECOND         (G_GINT64_CONSTANT (1000))
-
-/**
- * GTimeSpan:
- *
- * A value representing an interval of time, in microseconds.
- *
- * Since: 2.26
- */
-typedef gint64 GTimeSpan;
-
-/**
- * GDateTime:
- *
- * `GDateTime` is an opaque structure whose members
- * cannot be accessed directly.
- *
- * Since: 2.26
- */
-typedef struct _GDateTime GDateTime;
-
-GLIB_AVAILABLE_IN_ALL
-void                    g_date_time_unref                               (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_ref                                 (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_now                             (GTimeZone      *tz);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_now_local                       (void);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_now_utc                         (void);
-
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_from_unix_local                 (gint64          t);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_from_unix_utc                   (gint64          t);
-
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_from_timeval_local              (const GTimeVal *tv);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_from_timeval_utc                (const GTimeVal *tv);
-
-GLIB_AVAILABLE_IN_2_56
-GDateTime *             g_date_time_new_from_iso8601                    (const gchar    *text,
-                                                                         GTimeZone      *default_tz);
-
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new                                 (GTimeZone      *tz,
-                                                                         gint            year,
-                                                                         gint            month,
-                                                                         gint            day,
-                                                                         gint            hour,
-                                                                         gint            minute,
-                                                                         gdouble         seconds);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_local                           (gint            year,
-                                                                         gint            month,
-                                                                         gint            day,
-                                                                         gint            hour,
-                                                                         gint            minute,
-                                                                         gdouble         seconds);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_new_utc                             (gint            year,
-                                                                         gint            month,
-                                                                         gint            day,
-                                                                         gint            hour,
-                                                                         gint            minute,
-                                                                         gdouble         seconds);
-
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add                                 (GDateTime      *datetime,
-                                                                         GTimeSpan       timespan);
-
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_years                           (GDateTime      *datetime,
-                                                                         gint            years);
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_months                          (GDateTime      *datetime,
-                                                                         gint            months);
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_weeks                           (GDateTime      *datetime,
-                                                                         gint            weeks);
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_days                            (GDateTime      *datetime,
-                                                                         gint            days);
-
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_hours                           (GDateTime      *datetime,
-                                                                         gint            hours);
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_minutes                         (GDateTime      *datetime,
-                                                                         gint            minutes);
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_seconds                         (GDateTime      *datetime,
-                                                                         gdouble         seconds);
-
-GLIB_AVAILABLE_IN_ALL
-G_GNUC_WARN_UNUSED_RESULT
-GDateTime *             g_date_time_add_full                            (GDateTime      *datetime,
-                                                                         gint            years,
-                                                                         gint            months,
-                                                                         gint            days,
-                                                                         gint            hours,
-                                                                         gint            minutes,
-                                                                         gdouble         seconds);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_compare                             (gconstpointer   dt1,
-                                                                         gconstpointer   dt2);
-GLIB_AVAILABLE_IN_ALL
-GTimeSpan               g_date_time_difference                          (GDateTime      *end,
-                                                                         GDateTime      *begin);
-GLIB_AVAILABLE_IN_ALL
-guint                   g_date_time_hash                                (gconstpointer   datetime);
-GLIB_AVAILABLE_IN_ALL
-gboolean                g_date_time_equal                               (gconstpointer   dt1,
-                                                                         gconstpointer   dt2);
-
-GLIB_AVAILABLE_IN_ALL
-void                    g_date_time_get_ymd                             (GDateTime      *datetime,
-                                                                         gint           *year,
-                                                                         gint           *month,
-                                                                         gint           *day);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_year                            (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_month                           (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_day_of_month                    (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_week_numbering_year             (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_week_of_year                    (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_day_of_week                     (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_day_of_year                     (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_hour                            (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_minute                          (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_second                          (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gint                    g_date_time_get_microsecond                     (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gdouble                 g_date_time_get_seconds                         (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-gint64                  g_date_time_to_unix                             (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gboolean                g_date_time_to_timeval                          (GDateTime      *datetime,
-                                                                         GTimeVal       *tv);
-
-GLIB_AVAILABLE_IN_ALL
-GTimeSpan               g_date_time_get_utc_offset                      (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_2_58
-GTimeZone *             g_date_time_get_timezone                        (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-const gchar *           g_date_time_get_timezone_abbreviation           (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-gboolean                g_date_time_is_daylight_savings                 (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_to_timezone                         (GDateTime      *datetime,
-                                                                         GTimeZone      *tz);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_to_local                            (GDateTime      *datetime);
-GLIB_AVAILABLE_IN_ALL
-GDateTime *             g_date_time_to_utc                              (GDateTime      *datetime);
-
-GLIB_AVAILABLE_IN_ALL
-gchar *                 g_date_time_format                              (GDateTime      *datetime,
-                                                                         const gchar    *format) G_GNUC_MALLOC;
-
-G_END_DECLS
-
-#endif /* __G_DATE_TIME_H__ */
 /* GLIB - Library of useful routines for C programming
  * Copyright (C) 1995-1997  Peter Mattis, Spencer Kimball and Josh MacDonald
  *
@@ -6052,6 +7232,39 @@ typedef enum
   G_FILE_TEST_EXISTS        = 1 << 4
 } GFileTest;
 
+/**
+ * GFileSetContentsFlags:
+ * @G_FILE_SET_CONTENTS_NONE: No guarantees about file consistency or durability.
+ *    The most dangerous setting, which is slightly faster than other settings.
+ * @G_FILE_SET_CONTENTS_CONSISTENT: Guarantee file consistency: after a crash,
+ *    either the old version of the file or the new version of the file will be
+ *    available, but not a mixture. On Unix systems this equates to an `fsync()`
+ *    on the file and use of an atomic `rename()` of the new version of the file
+ *    over the old.
+ * @G_FILE_SET_CONTENTS_DURABLE: Guarantee file durability: after a crash, the
+ *    new version of the file will be available. On Unix systems this equates to
+ *    an `fsync()` on the file (if %G_FILE_SET_CONTENTS_CONSISTENT is unset), or
+ *    the effects of %G_FILE_SET_CONTENTS_CONSISTENT plus an `fsync()` on the
+ *    directory containing the file after calling `rename()`.
+ * @G_FILE_SET_CONTENTS_ONLY_EXISTING: Only apply consistency and durability
+ *    guarantees if the file already exists. This may speed up file operations
+ *    if the file doesn’t currently exist, but may result in a corrupted version
+ *    of the new file if the system crashes while writing it.
+ *
+ * Flags to pass to g_file_set_contents_full() to affect its safety and
+ * performance.
+ *
+ * Since: 2.66
+ */
+typedef enum
+{
+  G_FILE_SET_CONTENTS_NONE = 0,
+  G_FILE_SET_CONTENTS_CONSISTENT = 1 << 0,
+  G_FILE_SET_CONTENTS_DURABLE = 1 << 1,
+  G_FILE_SET_CONTENTS_ONLY_EXISTING = 1 << 2
+} GFileSetContentsFlags
+GLIB_AVAILABLE_ENUMERATOR_IN_2_66;
+
 GLIB_AVAILABLE_IN_ALL
 GQuark     g_file_error_quark      (void);
 /* So other code can generate a GFileError */
@@ -6071,6 +7284,15 @@ gboolean g_file_set_contents (const gchar *filename,
                               const gchar *contents,
                               gssize         length,
                               GError       **error);
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_66
+gboolean g_file_set_contents_full (const gchar            *filename,
+                                   const gchar            *contents,
+                                   gssize                  length,
+                                   GFileSetContentsFlags   flags,
+                                   int                     mode,
+                                   GError                **error);
+G_GNUC_END_IGNORE_DEPRECATIONS
 GLIB_AVAILABLE_IN_ALL
 gchar   *g_file_read_link    (const gchar  *filename,
                               GError      **error);
@@ -6141,9 +7363,7 @@ const gchar *g_path_skip_root   (const gchar *file_name);
 
 GLIB_DEPRECATED_FOR(g_path_get_basename)
 const gchar *g_basename         (const gchar *file_name);
-#ifndef G_DISABLE_DEPRECATED
-#define g_dirname g_path_get_dirname
-#endif
+#define g_dirname g_path_get_dirname GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_path_get_dirname)
 
 GLIB_AVAILABLE_IN_ALL
 gchar *g_get_current_dir   (void);
@@ -6392,16 +7612,19 @@ gpointer g_try_realloc_n  (gpointer	 mem,
 			   gsize	 n_blocks,
 			   gsize	 n_block_bytes) G_GNUC_WARN_UNUSED_RESULT;
 
-#if defined(g_has_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_58
-#define g_clear_pointer(pp, destroy)                                           \
-  G_STMT_START {                                                               \
-    G_STATIC_ASSERT (sizeof *(pp) == sizeof (gpointer));                       \
-    __typeof__((pp)) _pp = (pp);                                               \
-    __typeof__(*(pp)) _ptr = *_pp;                                             \
-    *_pp = NULL;                                                               \
-    if (_ptr)                                                                  \
-      (destroy) (_ptr);                                                        \
-  } G_STMT_END
+#if defined(glib_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_58
+#define g_clear_pointer(pp, destroy)                     \
+  G_STMT_START                                           \
+  {                                                      \
+    G_STATIC_ASSERT (sizeof *(pp) == sizeof (gpointer)); \
+    glib_typeof ((pp)) _pp = (pp);                       \
+    glib_typeof (*(pp)) _ptr = *_pp;                     \
+    *_pp = NULL;                                         \
+    if (_ptr)                                            \
+      (destroy) (_ptr);                                  \
+  }                                                      \
+  G_STMT_END                                             \
+  GLIB_AVAILABLE_MACRO_IN_2_34
 #else /* __GNUC__ */
 #define g_clear_pointer(pp, destroy) \
   G_STMT_START {                                                               \
@@ -6419,7 +7642,8 @@ gpointer g_try_realloc_n  (gpointer	 mem,
         *_pp.out = NULL;                                                       \
         _destroy (_p);                                                         \
       }                                                                        \
-  } G_STMT_END
+  } G_STMT_END                                                                 \
+  GLIB_AVAILABLE_MACRO_IN_2_34
 #endif /* __GNUC__ */
 
 /**
@@ -6477,6 +7701,7 @@ gpointer g_try_realloc_n  (gpointer	 mem,
  *
  * Since: 2.44
  */
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_44
 static inline gpointer
 g_steal_pointer (gpointer pp)
 {
@@ -6490,8 +7715,8 @@ g_steal_pointer (gpointer pp)
 }
 
 /* type safety */
-#if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)) && !defined(__cplusplus) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_58
-#define g_steal_pointer(pp) ((__typeof__(*pp)) (g_steal_pointer) (pp))
+#if defined(glib_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_58
+#define g_steal_pointer(pp) ((glib_typeof (*pp)) (g_steal_pointer) (pp))
 #else  /* __GNUC__ */
 /* This version does not depend on gcc extensions, but gcc does not warn
  * about incompatible-pointer-types: */
@@ -6646,6 +7871,9 @@ struct _GMemVTable {
   gpointer (*malloc)      (gsize    n_bytes);
   gpointer (*realloc)     (gpointer mem,
 			   gsize    n_bytes);
+  /* optional; set to NULL if not supported */
+  gpointer (*memalign)    (gsize    alignment,
+			   gsize    size);
   void     (*free)        (gpointer mem);
   /* optional; set to NULL if not used ! */
   gpointer (*calloc)      (gsize    n_blocks,
@@ -6731,21 +7959,6 @@ typedef gboolean	(*GNodeTraverseFunc)	(GNode	       *node,
 						 gpointer	data);
 typedef void		(*GNodeForeachFunc)	(GNode	       *node,
 						 gpointer	data);
-
-/**
- * GCopyFunc:
- * @src: (not nullable): A pointer to the data which should be copied
- * @data: Additional data
- *
- * A function of this signature is used to copy the node data 
- * when doing a deep-copy of a tree.
- *
- * Returns: (not nullable): A pointer to the copy
- *
- * Since: 2.4
- */
-typedef gpointer	(*GCopyFunc)            (gconstpointer  src,
-                                                 gpointer       data);
 
 /* N-way tree implementation
  */
@@ -7039,6 +8252,10 @@ GLIB_AVAILABLE_IN_ALL
 GList*   g_list_insert_before           (GList            *list,
 					 GList            *sibling,
 					 gpointer          data) G_GNUC_WARN_UNUSED_RESULT;
+GLIB_AVAILABLE_IN_2_62
+GList*   g_list_insert_before_link      (GList            *list,
+					 GList            *sibling,
+					 GList            *link_) G_GNUC_WARN_UNUSED_RESULT;
 GLIB_AVAILABLE_IN_ALL
 GList*   g_list_concat                  (GList            *list1,
 					 GList            *list2) G_GNUC_WARN_UNUSED_RESULT;
@@ -7103,6 +8320,27 @@ GList*   g_list_sort_with_data          (GList            *list,
 GLIB_AVAILABLE_IN_ALL
 gpointer g_list_nth_data                (GList            *list,
 					 guint             n);
+
+GLIB_AVAILABLE_IN_2_64
+void     g_clear_list                   (GList           **list_ptr,
+                                         GDestroyNotify    destroy);
+
+#define  g_clear_list(list_ptr, destroy)       \
+  G_STMT_START {                               \
+    GList *_list;                              \
+                                               \
+    _list = *(list_ptr);                       \
+    if (_list)                                 \
+      {                                        \
+        *list_ptr = NULL;                      \
+                                               \
+        if ((destroy) != NULL)                 \
+          g_list_free_full (_list, (destroy)); \
+        else                                   \
+          g_list_free (_list);                 \
+      }                                        \
+  } G_STMT_END                                 \
+  GLIB_AVAILABLE_MACRO_IN_2_64
 
 
 #define g_list_previous(list)	        ((list) ? (((GList *)(list))->prev) : NULL)
@@ -7228,10 +8466,8 @@ GHashTable* g_hash_table_ref               (GHashTable     *hash_table);
 GLIB_AVAILABLE_IN_ALL
 void        g_hash_table_unref             (GHashTable     *hash_table);
 
-#ifndef G_DISABLE_DEPRECATED
-#define g_hash_table_freeze(hash_table) ((void)0)
-#define g_hash_table_thaw(hash_table) ((void)0)
-#endif
+#define g_hash_table_freeze(hash_table) ((void)0) GLIB_DEPRECATED_MACRO_IN_2_26
+#define g_hash_table_thaw(hash_table) ((void)0) GLIB_DEPRECATED_MACRO_IN_2_26
 
 /* Hash Functions
  */
@@ -7901,6 +9137,27 @@ GLIB_AVAILABLE_IN_ALL
 gpointer g_slist_nth_data                (GSList           *list,
 					  guint             n);
 
+GLIB_AVAILABLE_IN_2_64
+void     g_clear_slist                   (GSList          **slist_ptr,
+                                          GDestroyNotify    destroy);
+
+#define  g_clear_slist(slist_ptr, destroy)       \
+  G_STMT_START {                                 \
+    GSList *_slist;                              \
+                                                 \
+    _slist = *(slist_ptr);                       \
+    if (_slist)                                  \
+      {                                          \
+        *slist_ptr = NULL;                       \
+                                                 \
+        if ((destroy) != NULL)                   \
+          g_slist_free_full (_slist, (destroy)); \
+        else                                     \
+          g_slist_free (_slist);                 \
+      }                                          \
+  } G_STMT_END                                   \
+  GLIB_AVAILABLE_MACRO_IN_2_64
+
 #define  g_slist_next(slist)	         ((slist) ? (((GSList *)(slist))->next) : NULL)
 
 G_END_DECLS
@@ -8069,7 +9326,7 @@ typedef gboolean (*GSourceFunc)       (gpointer user_data);
  *
  * Since: 2.58
  */
-#define G_SOURCE_FUNC(f) ((GSourceFunc) (void (*)(void)) (f))
+#define G_SOURCE_FUNC(f) ((GSourceFunc) (void (*)(void)) (f)) GLIB_AVAILABLE_MACRO_IN_2_58
 
 /**
  * GChildWatchFunc:
@@ -8085,6 +9342,20 @@ typedef gboolean (*GSourceFunc)       (gpointer user_data);
 typedef void     (*GChildWatchFunc)   (GPid     pid,
                                        gint     status,
                                        gpointer user_data);
+
+
+/**
+ * GSourceDisposeFunc:
+ * @source: #GSource that is currently being disposed
+ *
+ * Dispose function for @source. See g_source_set_dispose_function() for
+ * details.
+ *
+ * Since: 2.64
+ */
+GLIB_AVAILABLE_TYPE_IN_2_64
+typedef void (*GSourceDisposeFunc)       (GSource *source);
+
 struct _GSource
 {
   /*< private >*/
@@ -8311,6 +9582,91 @@ GMainContext *g_main_context_get_thread_default  (void);
 GLIB_AVAILABLE_IN_ALL
 GMainContext *g_main_context_ref_thread_default  (void);
 
+/**
+ * GMainContextPusher:
+ *
+ * Opaque type. See g_main_context_pusher_new() for details.
+ *
+ * Since: 2.64
+ */
+typedef void GMainContextPusher GLIB_AVAILABLE_TYPE_IN_2_64;
+
+/**
+ * g_main_context_pusher_new:
+ * @main_context: (transfer none): a main context to push
+ *
+ * Push @main_context as the new thread-default main context for the current
+ * thread, using g_main_context_push_thread_default(), and return a new
+ * #GMainContextPusher. Pop with g_main_context_pusher_free(). Using
+ * g_main_context_pop_thread_default() on @main_context while a
+ * #GMainContextPusher exists for it can lead to undefined behaviour.
+ *
+ * Using two #GMainContextPushers in the same scope is not allowed, as it leads
+ * to an undefined pop order.
+ *
+ * This is intended to be used with g_autoptr().  Note that g_autoptr()
+ * is only available when using GCC or clang, so the following example
+ * will only work with those compilers:
+ * |[
+ * typedef struct
+ * {
+ *   ...
+ *   GMainContext *context;
+ *   ...
+ * } MyObject;
+ *
+ * static void
+ * my_object_do_stuff (MyObject *self)
+ * {
+ *   g_autoptr(GMainContextPusher) pusher = g_main_context_pusher_new (self->context);
+ *
+ *   // Code with main context as the thread default here
+ *
+ *   if (cond)
+ *     // No need to pop
+ *     return;
+ *
+ *   // Optionally early pop
+ *   g_clear_pointer (&pusher, g_main_context_pusher_free);
+ *
+ *   // Code with main context no longer the thread default here
+ * }
+ * ]|
+ *
+ * Returns: (transfer full): a #GMainContextPusher
+ * Since: 2.64
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_64
+static inline GMainContextPusher *
+g_main_context_pusher_new (GMainContext *main_context)
+{
+  g_main_context_push_thread_default (main_context);
+  return (GMainContextPusher *) main_context;
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
+
+/**
+ * g_main_context_pusher_free:
+ * @pusher: (transfer full): a #GMainContextPusher
+ *
+ * Pop @pusher’s main context as the thread default main context.
+ * See g_main_context_pusher_new() for details.
+ *
+ * This will pop the #GMainContext as the current thread-default main context,
+ * but will not call g_main_context_unref() on it.
+ *
+ * Since: 2.64
+ */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_STATIC_INLINE_IN_2_64
+static inline void
+g_main_context_pusher_free (GMainContextPusher *pusher)
+{
+  g_main_context_pop_thread_default ((GMainContext *) pusher);
+}
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 /* GMainLoop: */
 
 GLIB_AVAILABLE_IN_ALL
@@ -8334,6 +9690,13 @@ GMainContext *g_main_loop_get_context (GMainLoop    *loop);
 GLIB_AVAILABLE_IN_ALL
 GSource *g_source_new             (GSourceFuncs   *source_funcs,
                                    guint           struct_size);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_64
+void     g_source_set_dispose_function (GSource            *source,
+                                        GSourceDisposeFunc  dispose);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 GSource *g_source_ref             (GSource        *source);
 GLIB_AVAILABLE_IN_ALL
@@ -8425,9 +9788,11 @@ GLIB_AVAILABLE_IN_ALL
 void     g_source_remove_child_source (GSource        *source,
 				       GSource        *child_source);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED_IN_2_28_FOR(g_source_get_time)
 void     g_source_get_current_time (GSource        *source,
                                     GTimeVal       *timeval);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 GLIB_AVAILABLE_IN_ALL
 gint64   g_source_get_time         (GSource        *source);
@@ -8449,8 +9814,11 @@ GSource *g_timeout_source_new_seconds (guint interval);
 
 /* Miscellaneous functions
  */
-GLIB_AVAILABLE_IN_ALL
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_get_real_time)
 void   g_get_current_time                 (GTimeVal       *result);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 gint64 g_get_monotonic_time               (void);
 GLIB_AVAILABLE_IN_ALL
@@ -8495,7 +9863,8 @@ void    g_clear_handle_id (guint           *tag_ptr,
         *_tag_ptr = 0;                                     \
         clear_func (_handle_id);                           \
       }                                                    \
-  } G_STMT_END
+  } G_STMT_END                                             \
+  GLIB_AVAILABLE_MACRO_IN_2_56
 
 /* Idles, child watchers and timeouts */
 GLIB_AVAILABLE_IN_ALL
@@ -8747,9 +10116,7 @@ typedef enum
  *
  * Deprecated: 2.30: Use %G_UNICODE_SPACING_MARK.
  */
-#ifndef G_DISABLE_DEPRECATED
-#define G_UNICODE_COMBINING_MARK G_UNICODE_SPACING_MARK
-#endif
+#define G_UNICODE_COMBINING_MARK G_UNICODE_SPACING_MARK GLIB_DEPRECATED_MACRO_IN_2_30_FOR(G_UNICODE_SPACING_MARK)
 
 /**
  * GUnicodeBreakType:
@@ -9015,6 +10382,14 @@ typedef enum
  * @G_UNICODE_SCRIPT_MEDEFAIDRIN:          Medefaidrin. Since: 2.58
  * @G_UNICODE_SCRIPT_OLD_SOGDIAN:          Old Sogdian. Since: 2.58
  * @G_UNICODE_SCRIPT_SOGDIAN:              Sogdian. Since: 2.58
+ * @G_UNICODE_SCRIPT_ELYMAIC:              Elym. Since: 2.62
+ * @G_UNICODE_SCRIPT_NANDINAGARI:          Nand. Since: 2.62
+ * @G_UNICODE_SCRIPT_NYIAKENG_PUACHUE_HMONG: Rohg. Since: 2.62
+ * @G_UNICODE_SCRIPT_WANCHO:               Wcho. Since: 2.62
+ * @G_UNICODE_SCRIPT_CHORASMIAN:           Chorasmian. Since: 2.66
+ * @G_UNICODE_SCRIPT_DIVES_AKURU:          Dives Akuru. Since: 2.66
+ * @G_UNICODE_SCRIPT_KHITAN_SMALL_SCRIPT:  Khitan small script. Since: 2.66
+ * @G_UNICODE_SCRIPT_YEZIDI:               Yezidi. Since: 2.66
  *
  * The #GUnicodeScript enumeration identifies different writing
  * systems. The values correspond to the names as defined in the
@@ -9156,7 +10531,7 @@ typedef enum
   G_UNICODE_SCRIPT_KHUDAWADI,              /* Sind */
   G_UNICODE_SCRIPT_LINEAR_A,               /* Lina */
   G_UNICODE_SCRIPT_MAHAJANI,               /* Mahj */
-  G_UNICODE_SCRIPT_MANICHAEAN,             /* Manu */
+  G_UNICODE_SCRIPT_MANICHAEAN,             /* Mani */
   G_UNICODE_SCRIPT_MENDE_KIKAKUI,          /* Mend */
   G_UNICODE_SCRIPT_MODI,                   /* Modi */
   G_UNICODE_SCRIPT_MRO,                    /* Mroo */
@@ -9200,7 +10575,19 @@ typedef enum
   G_UNICODE_SCRIPT_MAKASAR,                /* Maka */
   G_UNICODE_SCRIPT_MEDEFAIDRIN,            /* Medf */
   G_UNICODE_SCRIPT_OLD_SOGDIAN,            /* Sogo */
-  G_UNICODE_SCRIPT_SOGDIAN                 /* Sogd */
+  G_UNICODE_SCRIPT_SOGDIAN,                /* Sogd */
+
+  /* Unicode 12.0 additions */
+  G_UNICODE_SCRIPT_ELYMAIC,                /* Elym */
+  G_UNICODE_SCRIPT_NANDINAGARI,            /* Nand */
+  G_UNICODE_SCRIPT_NYIAKENG_PUACHUE_HMONG, /* Rohg */
+  G_UNICODE_SCRIPT_WANCHO,                 /* Wcho */
+
+  /* Unicode 13.0 additions */
+  G_UNICODE_SCRIPT_CHORASMIAN,             /* Chrs */
+  G_UNICODE_SCRIPT_DIVES_AKURU,            /* Diak */
+  G_UNICODE_SCRIPT_KHITAN_SMALL_SCRIPT,    /* Kits */
+  G_UNICODE_SCRIPT_YEZIDI                  /* Yezi */
 } GUnicodeScript;
 
 GLIB_AVAILABLE_IN_ALL
@@ -9658,10 +11045,8 @@ GString *g_string_down (GString *string);
 GLIB_DEPRECATED
 GString *g_string_up   (GString *string);
 
-#ifndef G_DISABLE_DEPRECATED
-#define  g_string_sprintf  g_string_printf
-#define  g_string_sprintfa g_string_append_printf
-#endif
+#define  g_string_sprintf  g_string_printf GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_string_printf)
+#define  g_string_sprintfa g_string_append_printf GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_string_append_printf)
 
 G_END_DECLS
 
@@ -9674,9 +11059,6 @@ G_BEGIN_DECLS
 
 typedef struct _GIOChannel	GIOChannel;
 typedef struct _GIOFuncs        GIOFuncs;
-
-typedef void (* GIOChannelCloseConvertersFunc) (GIOChannel * channel);
-typedef void (* GIOChannelResetConvertersFunc) (GIOChannel * channel);
 
 typedef enum
 {
@@ -9758,8 +11140,8 @@ struct _GIOChannel
   guint is_writeable   : 1;	/* ditto */
   guint is_seekable    : 1;	/* ditto */
 
-  GIOChannelCloseConvertersFunc close_converters;
-  GIOChannelResetConvertersFunc reset_converters;
+  gpointer reserved1;	
+  gpointer reserved2;	
 };
 
 typedef gboolean (*GIOFunc) (GIOChannel   *source,
@@ -9982,7 +11364,7 @@ void        g_io_channel_win32_make_pollfd (GIOChannel   *channel,
 					    GIOCondition  condition,
 					    GPollFD      *fd);
 
-/* This can be used to wait a until at least one of the channels is readable.
+/* This can be used to wait until at least one of the channels is readable.
  * On Unix you would do a select() on the file descriptors of the channels.
  */
 GLIB_AVAILABLE_IN_ALL
@@ -11421,7 +12803,8 @@ typedef enum
   G_VARIANT_PARSE_ERROR_UNEXPECTED_TOKEN,
   G_VARIANT_PARSE_ERROR_UNKNOWN_KEYWORD,
   G_VARIANT_PARSE_ERROR_UNTERMINATED_STRING_CONSTANT,
-  G_VARIANT_PARSE_ERROR_VALUE_EXPECTED
+  G_VARIANT_PARSE_ERROR_VALUE_EXPECTED,
+  G_VARIANT_PARSE_ERROR_RECURSION
 } GVariantParseError;
 #define G_VARIANT_PARSE_ERROR (g_variant_parse_error_quark ())
 
@@ -11821,6 +13204,12 @@ GLogWriterOutput g_log_writer_default          (GLogLevelFlags   log_level,
                                                 gsize            n_fields,
                                                 gpointer         user_data);
 
+GLIB_AVAILABLE_IN_2_68
+void            g_log_writer_default_set_use_stderr (gboolean use_stderr);
+GLIB_AVAILABLE_IN_2_68
+gboolean        g_log_writer_default_would_drop (GLogLevelFlags  log_level,
+                                                 const char     *log_domain);
+
 /**
  * G_DEBUG_HERE:
  *
@@ -11856,11 +13245,12 @@ void g_warn_message           (const char     *domain,
                                const char     *func,
                                const char     *warnexpr) G_ANALYZER_NORETURN;
 GLIB_DEPRECATED
+G_NORETURN
 void g_assert_warning         (const char *log_domain,
 			       const char *file,
 			       const int   line,
 		               const char *pretty_function,
-		               const char *expression) G_GNUC_NORETURN;
+		               const char *expression);
 
 GLIB_AVAILABLE_IN_2_56
 void g_log_structured_standard (const gchar    *log_domain,
@@ -11876,7 +13266,7 @@ void g_log_structured_standard (const gchar    *log_domain,
 #endif  /* G_LOG_DOMAIN */
 
 #if defined(G_HAVE_ISO_VARARGS) && !G_ANALYZER_ANALYZING
-#ifdef G_LOG_USE_STRUCTURED
+#if defined(G_LOG_USE_STRUCTURED) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_56
 #define g_error(...)  G_STMT_START {                                            \
                         g_log_structured_standard (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, \
                                                    __FILE__, G_STRINGIFY (__LINE__), \
@@ -11925,7 +13315,7 @@ void g_log_structured_standard (const gchar    *log_domain,
                                __VA_ARGS__)
 #endif
 #elif defined(G_HAVE_GNUC_VARARGS)  && !G_ANALYZER_ANALYZING
-#ifdef G_LOG_USE_STRUCTURED
+#if defined(G_LOG_USE_STRUCTURED) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_56
 #define g_error(format...)   G_STMT_START {                                          \
                                g_log_structured_standard (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, \
                                                           __FILE__, G_STRINGIFY (__LINE__), \
@@ -11972,7 +13362,7 @@ void g_log_structured_standard (const gchar    *log_domain,
                                        format)
 #endif
 #else   /* no varargs macros */
-static void g_error (const gchar *format, ...) G_GNUC_NORETURN G_ANALYZER_NORETURN;
+static G_NORETURN void g_error (const gchar *format, ...) G_ANALYZER_NORETURN;
 static void g_critical (const gchar *format, ...) G_ANALYZER_NORETURN;
 
 static inline void
@@ -12032,6 +13422,43 @@ g_debug (const gchar *format,
   va_end (args);
 }
 #endif  /* !__GNUC__ */
+
+/**
+ * g_warning_once:
+ * @...: format string, followed by parameters to insert
+ *     into the format string (as with printf())
+ *
+ * Logs a warning only once.
+ *
+ * g_warning_once() calls g_warning() with the passed message the first time
+ * the statement is executed; subsequent times it is a no-op.
+ *
+ * Note! On platforms where the compiler doesn't support variadic macros, the
+ * warning is printed each time instead of only once.
+ *
+ * Since: 2.64
+ */
+#if defined(G_HAVE_ISO_VARARGS) && !G_ANALYZER_ANALYZING
+#define g_warning_once(...) \
+  G_STMT_START { \
+    static int G_PASTE (_GWarningOnceBoolean, __LINE__) = 0;  /* (atomic) */ \
+    if (g_atomic_int_compare_and_exchange (&G_PASTE (_GWarningOnceBoolean, __LINE__), \
+                                           0, 1)) \
+      g_warning (__VA_ARGS__); \
+  } G_STMT_END \
+  GLIB_AVAILABLE_MACRO_IN_2_64
+#elif defined(G_HAVE_GNUC_VARARGS)  && !G_ANALYZER_ANALYZING
+#define g_warning_once(format...) \
+  G_STMT_START { \
+    static int G_PASTE (_GWarningOnceBoolean, __LINE__) = 0;  /* (atomic) */ \
+    if (g_atomic_int_compare_and_exchange (&G_PASTE (_GWarningOnceBoolean, __LINE__), \
+                                           0, 1)) \
+      g_warning (format); \
+  } G_STMT_END \
+  GLIB_AVAILABLE_MACRO_IN_2_64
+#else
+#define g_warning_once g_warning
+#endif
 
 /**
  * GPrintFunc:
@@ -12307,11 +13734,12 @@ typedef enum
 /**
  * GOptionArg:
  * @G_OPTION_ARG_NONE: No extra argument. This is useful for simple flags.
- * @G_OPTION_ARG_STRING: The option takes a string argument.
+ * @G_OPTION_ARG_STRING: The option takes a UTF-8 string argument.
  * @G_OPTION_ARG_INT: The option takes an integer argument.
  * @G_OPTION_ARG_CALLBACK: The option provides a callback (of type
  *     #GOptionArgFunc) to parse the extra argument.
- * @G_OPTION_ARG_FILENAME: The option takes a filename as argument.
+ * @G_OPTION_ARG_FILENAME: The option takes a filename as argument, which will
+       be in the GLib filename encoding rather than UTF-8.
  * @G_OPTION_ARG_STRING_ARRAY: The option takes a string argument, multiple
  *     uses of the option are collected into an array of strings.
  * @G_OPTION_ARG_FILENAME_ARRAY: The option takes a filename as argument, 
@@ -12688,7 +14116,7 @@ struct _GFDCallbacks
 
 GLIB_VAR
 GFDCallbacks       *glib_fd_callbacks;
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                g_platform_audit_set_fd_callbacks (GFDCallbacks *callbacks);
 
 G_END_DECLS
@@ -12932,10 +14360,20 @@ GLIB_AVAILABLE_IN_ALL
 void     g_queue_insert_before  (GQueue           *queue,
                                  GList            *sibling,
                                  gpointer          data);
+GLIB_AVAILABLE_IN_2_62
+void     g_queue_insert_before_link
+                                (GQueue           *queue,
+                                 GList            *sibling,
+                                 GList            *link_);
 GLIB_AVAILABLE_IN_ALL
 void     g_queue_insert_after   (GQueue           *queue,
                                  GList            *sibling,
                                  gpointer          data);
+GLIB_AVAILABLE_IN_2_62
+void     g_queue_insert_after_link
+                                (GQueue           *queue,
+                                 GList            *sibling,
+                                 GList            *link_);
 GLIB_AVAILABLE_IN_ALL
 void     g_queue_insert_sorted  (GQueue           *queue,
                                  gpointer          data,
@@ -13017,7 +14455,7 @@ typedef struct _GRand           GRand;
 
 /* GRand - a good and fast random number generator: Mersenne Twister
  * see http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html for more info.
- * The range functions return a value in the intervall [begin, end).
+ * The range functions return a value in the interval [begin, end).
  * int          -> [0..2^32-1]
  * int_range    -> [begin..end-1]
  * double       -> [0..1)
@@ -13149,18 +14587,18 @@ gsize           g_atomic_rc_box_get_size        (gpointer        mem_block);
 #define g_atomic_rc_box_new0(type) \
   ((type *) g_atomic_rc_box_alloc0 (sizeof (type)))
 
-#ifdef g_has_typeof
+#ifdef glib_typeof
 /* Type check to avoid assigning references to different types */
-# define g_rc_box_acquire(mem_block) \
-  ((__typeof__(mem_block)) (g_rc_box_acquire) (mem_block))
-# define g_atomic_rc_box_acquire(mem_block) \
-  ((__typeof__(mem_block)) (g_atomic_rc_box_acquire) (mem_block))
+#define g_rc_box_acquire(mem_block) \
+  ((glib_typeof (mem_block)) (g_rc_box_acquire) (mem_block))
+#define g_atomic_rc_box_acquire(mem_block) \
+  ((glib_typeof (mem_block)) (g_atomic_rc_box_acquire) (mem_block))
 
 /* Type check to avoid duplicating data to different types */
-# define g_rc_box_dup(block_size,mem_block) \
-  ((__typeof__(mem_block)) (g_rc_box_dup) (block_size,mem_block))
-# define g_atomic_rc_box_dup(block_size,mem_block) \
-  ((__typeof__(mem_block)) (g_atomic_rc_box_dup) (block_size,mem_block))
+#define g_rc_box_dup(block_size, mem_block) \
+  ((glib_typeof (mem_block)) (g_rc_box_dup) (block_size, mem_block))
+#define g_atomic_rc_box_dup(block_size, mem_block) \
+  ((glib_typeof (mem_block)) (g_atomic_rc_box_dup) (block_size, mem_block))
 #endif
 
 G_END_DECLS
@@ -14227,25 +15665,21 @@ void		g_scanner_warn			(GScanner	*scanner,
 						 const gchar	*format,
 						 ...) G_GNUC_PRINTF (2,3);
 
-#ifndef G_DISABLE_DEPRECATED
-
 /* keep downward source compatibility */
 #define		g_scanner_add_symbol( scanner, symbol, value )	G_STMT_START { \
   g_scanner_scope_add_symbol ((scanner), 0, (symbol), (value)); \
-} G_STMT_END
+} G_STMT_END GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_scanner_scope_add_symbol)
 #define		g_scanner_remove_symbol( scanner, symbol )	G_STMT_START { \
   g_scanner_scope_remove_symbol ((scanner), 0, (symbol)); \
-} G_STMT_END
+} G_STMT_END GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_scanner_scope_remove_symbol)
 #define		g_scanner_foreach_symbol( scanner, func, data )	G_STMT_START { \
   g_scanner_scope_foreach_symbol ((scanner), 0, (func), (data)); \
-} G_STMT_END
+} G_STMT_END GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_scanner_scope_foreach_symbol)
 
 /* The following two functions are deprecated and will be removed in
  * the next major release. They do no good. */
-#define g_scanner_freeze_symbol_table(scanner) ((void)0)
-#define g_scanner_thaw_symbol_table(scanner) ((void)0)
-
-#endif /* G_DISABLE_DEPRECATED */
+#define g_scanner_freeze_symbol_table(scanner) ((void)0) GLIB_DEPRECATED_MACRO_IN_2_26
+#define g_scanner_thaw_symbol_table(scanner) ((void)0) GLIB_DEPRECATED_MACRO_IN_2_26
 
 G_END_DECLS
 
@@ -14502,6 +15936,7 @@ G_END_DECLS
 #error "Only <glib.h> can be included directly."
 #endif
 
+#include <string.h>
 
 G_BEGIN_DECLS
 
@@ -14522,7 +15957,22 @@ void     g_slice_free_chain_with_offset (gsize         block_size,
 					 gpointer      mem_chain,
 					 gsize         next_offset);
 #define  g_slice_new(type)      ((type*) g_slice_alloc (sizeof (type)))
-#define  g_slice_new0(type)     ((type*) g_slice_alloc0 (sizeof (type)))
+
+/* Allow the compiler to inline memset(). Since the size is a constant, this
+ * can significantly improve performance. */
+#if defined (__GNUC__) && (__GNUC__ >= 2) && defined (__OPTIMIZE__)
+#  define g_slice_new0(type)                                    \
+  (type *) (G_GNUC_EXTENSION ({                                 \
+    gsize __s = sizeof (type);                                  \
+    gpointer __p;                                               \
+    __p = g_slice_alloc (__s);                                  \
+    memset (__p, 0, __s);                                       \
+    __p;                                                        \
+  }))
+#else
+#  define g_slice_new0(type)    ((type*) g_slice_alloc0 (sizeof (type)))
+#endif
+
 /* MemoryBlockType *
  *       g_slice_dup                    (MemoryBlockType,
  *	                                 MemoryBlockType *mem_block);
@@ -14623,7 +16073,7 @@ G_BEGIN_DECLS
  * @G_SPAWN_ERROR_ACCES: execv() returned `EACCES`
  * @G_SPAWN_ERROR_PERM: execv() returned `EPERM`
  * @G_SPAWN_ERROR_TOO_BIG: execv() returned `E2BIG`
- * @G_SPAWN_ERROR_2BIG: deprecated alias for %G_SPAWN_ERROR_TOO_BIG
+ * @G_SPAWN_ERROR_2BIG: deprecated alias for %G_SPAWN_ERROR_TOO_BIG (deprecated since GLib 2.32)
  * @G_SPAWN_ERROR_NOEXEC: execv() returned `ENOEXEC`
  * @G_SPAWN_ERROR_NAMETOOLONG: execv() returned `ENAMETOOLONG`
  * @G_SPAWN_ERROR_NOENT: execv() returned `ENOENT`
@@ -14650,9 +16100,7 @@ typedef enum
   G_SPAWN_ERROR_ACCES,  /* execv() returned EACCES */
   G_SPAWN_ERROR_PERM,   /* execv() returned EPERM */
   G_SPAWN_ERROR_TOO_BIG,/* execv() returned E2BIG */
-#ifndef G_DISABLE_DEPRECATED
-  G_SPAWN_ERROR_2BIG = G_SPAWN_ERROR_TOO_BIG,
-#endif
+  G_SPAWN_ERROR_2BIG GLIB_DEPRECATED_ENUMERATOR_IN_2_32_FOR(G_SPAWN_ERROR_TOO_BIG) = G_SPAWN_ERROR_TOO_BIG,
   G_SPAWN_ERROR_NOEXEC, /* execv() returned ENOEXEC */
   G_SPAWN_ERROR_NAMETOOLONG, /* ""  "" ENAMETOOLONG */
   G_SPAWN_ERROR_NOENT,       /* ""  "" ENOENT */
@@ -14736,7 +16184,7 @@ typedef void (* GSpawnChildSetupFunc) (gpointer user_data);
  *     execute, while the remaining elements are the actual argument vector
  *     to pass to the file. Normally g_spawn_async_with_pipes() uses `argv[0]`
  *     as the file to execute, and passes all of `argv` to the child.
- * @G_SPAWN_SEARCH_PATH_FROM_ENVP: if `argv[0]` is not an abolute path,
+ * @G_SPAWN_SEARCH_PATH_FROM_ENVP: if `argv[0]` is not an absolute path,
  *     it will be looked for in the `PATH` from the passed child environment.
  *     Since: 2.34
  * @G_SPAWN_CLOEXEC_PIPES: create all pipes with the `O_CLOEXEC` flag set.
@@ -15257,6 +16705,62 @@ gchar*        g_string_chunk_insert_const (GStringChunk *chunk,
 G_END_DECLS
 
 #endif /* __G_STRING_H__ */
+/*
+ * Copyright © 2020 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_STRVBUILDER_H__
+#define __G_STRVBUILDER_H__
+
+#if !defined(__GLIB_H_INSIDE__) && !defined(GLIB_COMPILATION)
+#error "Only <glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+/**
+ * GStrvBuilder:
+ * 
+ * A helper object to build a %NULL-terminated string array
+ * by appending. See g_strv_builder_new().
+ *
+ * Since: 2.68
+ */
+typedef struct _GStrvBuilder GStrvBuilder;
+
+GLIB_AVAILABLE_IN_2_68
+GStrvBuilder *g_strv_builder_new (void);
+
+GLIB_AVAILABLE_IN_2_68
+void g_strv_builder_unref (GStrvBuilder *builder);
+
+GLIB_AVAILABLE_IN_2_68
+GStrvBuilder *g_strv_builder_ref (GStrvBuilder *builder);
+
+GLIB_AVAILABLE_IN_2_68
+void g_strv_builder_add (GStrvBuilder *builder,
+                         const char *value);
+
+GLIB_AVAILABLE_IN_2_68
+GStrv g_strv_builder_end (GStrvBuilder *builder);
+
+G_END_DECLS
+
+#endif /* __G_STRVBUILDER_H__ */
 /* GLib testing utilities
  * Copyright (C) 2007 Imendio AB
  * Authors: Tim Janik
@@ -15282,6 +16786,7 @@ G_END_DECLS
 #error "Only <glib.h> can be included directly."
 #endif
 
+#include <errno.h>
 #include <string.h>
 
 G_BEGIN_DECLS
@@ -15334,11 +16839,17 @@ typedef void (*GTestFixtureFunc) (gpointer      fixture,
 #define g_assert_cmpmem(m1, l1, m2, l2) G_STMT_START {\
                                              gconstpointer __m1 = m1, __m2 = m2; \
                                              int __l1 = l1, __l2 = l2; \
-                                             if (__l1 != __l2) \
+                                             if (__l1 != 0 && __m1 == NULL) \
+                                               g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                                                    "assertion failed (" #l1 " == 0 || " #m1 " != NULL)"); \
+                                             else if (__l2 != 0 && __m2 == NULL) \
+                                               g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                                                    "assertion failed (" #l2 " == 0 || " #m2 " != NULL)"); \
+                                             else if (__l1 != __l2) \
                                                g_assertion_message_cmpnum (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
                                                                            #l1 " (len(" #m1 ")) == " #l2 " (len(" #m2 "))", \
                                                                            (long double) __l1, "==", (long double) __l2, 'i'); \
-                                             else if (__l1 != 0 && memcmp (__m1, __m2, __l1) != 0) \
+                                             else if (__l1 != 0 && __m2 != NULL && memcmp (__m1, __m2, __l1) != 0) \
                                                g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
                                                                     "assertion failed (" #m1 " == " #m2 ")"); \
                                         } G_STMT_END
@@ -15359,6 +16870,65 @@ typedef void (*GTestFixtureFunc) (gpointer      fixture,
       } \
   } \
   G_STMT_END
+#define g_assert_cmpstrv(strv1, strv2) \
+  G_STMT_START \
+  { \
+    const char * const *__strv1 = (const char * const *) (strv1); \
+    const char * const *__strv2 = (const char * const *) (strv2); \
+    if (!__strv1 || !__strv2) \
+      { \
+        if (__strv1) \
+          { \
+            g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                 "assertion failed (" #strv1 " == " #strv2 "): " #strv2 " is NULL, but " #strv1 " is not"); \
+          } \
+        else if (__strv2) \
+          { \
+            g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                 "assertion failed (" #strv1 " == " #strv2 "): " #strv1 " is NULL, but " #strv2 " is not"); \
+          } \
+      } \
+    else \
+      { \
+        guint __l1 = g_strv_length ((char **) __strv1); \
+        guint __l2 = g_strv_length ((char **) __strv2); \
+        if (__l1 != __l2) \
+          { \
+            char *__msg; \
+            __msg = g_strdup_printf ("assertion failed (" #strv1 " == " #strv2 "): length %u does not equal length %u", __l1, __l2); \
+            g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, __msg); \
+            g_free (__msg); \
+          } \
+        else \
+          { \
+            guint __i; \
+            for (__i = 0; __i < __l1; __i++) \
+              { \
+                if (g_strcmp0 (__strv1[__i], __strv2[__i]) != 0) \
+                  { \
+                    g_assertion_message_cmpstrv (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                                 #strv1 " == " #strv2, \
+                                                 __strv1, __strv2, __i); \
+                  } \
+              } \
+          } \
+      } \
+  } \
+  G_STMT_END
+#define g_assert_no_errno(expr)         G_STMT_START { \
+                                             int __ret, __errsv; \
+                                             errno = 0; \
+                                             __ret = expr; \
+                                             __errsv = errno; \
+                                             if (__ret < 0) \
+                                               { \
+                                                 gchar *__msg; \
+                                                 __msg = g_strdup_printf ("assertion failed (" #expr " >= 0): errno %i: %s", __errsv, g_strerror (__errsv)); \
+                                                 g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, __msg); \
+                                                 g_free (__msg); \
+                                               } \
+                                        } G_STMT_END \
+                                        GLIB_AVAILABLE_MACRO_IN_2_66
 #define g_assert_no_error(err)          G_STMT_START { \
                                              if (err) \
                                                g_assertion_message_error (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
@@ -15408,6 +16978,8 @@ typedef void (*GTestFixtureFunc) (gpointer      fixture,
  * GCC 5 is not a strict lower bound for versions of GCC which provide __builtin_unreachable(). */
 #if __GNUC__ >= 5 || g_macro__has_builtin(__builtin_unreachable)
 #define g_assert_not_reached()          G_STMT_START { (void) 0; __builtin_unreachable (); } G_STMT_END
+#elif defined (_MSC_VER)
+#define g_assert_not_reached()          G_STMT_START { (void) 0; __assume (0); } G_STMT_END
 #else  /* if __builtin_unreachable() is not supported: */
 #define g_assert_not_reached()          G_STMT_START { (void) 0; } G_STMT_END
 #endif
@@ -15429,7 +17001,7 @@ typedef void (*GAssertionFunc)          (const char     *domain,
                                          const char     *message,
                                          gpointer        user_data);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void g_assertion_set_handler            (GAssertionFunc handler,
                                          gpointer user_data);
 
@@ -15587,6 +17159,8 @@ GLIB_AVAILABLE_IN_ALL
 void    g_test_bug_base                 (const char *uri_pattern);
 GLIB_AVAILABLE_IN_ALL
 void    g_test_bug                      (const char *bug_uri_snippet);
+GLIB_AVAILABLE_IN_2_62
+void    g_test_summary                  (const char *summary);
 /* measure test timings */
 GLIB_AVAILABLE_IN_ALL
 void    g_test_timer_start              (void);
@@ -15620,7 +17194,7 @@ void    g_test_queue_destroy            (GDestroyNotify destroy_func,
  * Test traps are guards around forked tests.
  * These flags determine what traps to set.
  *
- * Deprecated: #GTestTrapFlags is used only with g_test_trap_fork(),
+ * Deprecated: 2.38: #GTestTrapFlags is used only with g_test_trap_fork(),
  * which is deprecated. g_test_trap_subprocess() uses
  * #GTestSubprocessFlags.
  */
@@ -15628,11 +17202,15 @@ typedef enum {
   G_TEST_TRAP_SILENCE_STDOUT    = 1 << 7,
   G_TEST_TRAP_SILENCE_STDERR    = 1 << 8,
   G_TEST_TRAP_INHERIT_STDIN     = 1 << 9
-} GTestTrapFlags;
+} GTestTrapFlags GLIB_DEPRECATED_TYPE_IN_2_38_FOR(GTestSubprocessFlags);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 
 GLIB_DEPRECATED_IN_2_38_FOR (g_test_trap_subprocess)
 gboolean g_test_trap_fork               (guint64              usec_timeout,
                                          GTestTrapFlags       test_trap_flags);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 typedef enum {
   G_TEST_SUBPROCESS_INHERIT_STDIN  = 1 << 0,
@@ -15706,13 +17284,14 @@ void    g_assertion_message             (const char     *domain,
                                          const char     *file,
                                          int             line,
                                          const char     *func,
-                                         const char     *message);
+                                         const char     *message) G_ANALYZER_NORETURN;
 GLIB_AVAILABLE_IN_ALL
+G_NORETURN
 void    g_assertion_message_expr        (const char     *domain,
                                          const char     *file,
                                          int             line,
                                          const char     *func,
-                                         const char     *expr) G_GNUC_NORETURN;
+                                         const char     *expr);
 GLIB_AVAILABLE_IN_ALL
 void    g_assertion_message_cmpstr      (const char     *domain,
                                          const char     *file,
@@ -15721,7 +17300,17 @@ void    g_assertion_message_cmpstr      (const char     *domain,
                                          const char     *expr,
                                          const char     *arg1,
                                          const char     *cmp,
-                                         const char     *arg2);
+                                         const char     *arg2) G_ANALYZER_NORETURN;
+
+GLIB_AVAILABLE_IN_2_68
+void    g_assertion_message_cmpstrv     (const char         *domain,
+                                         const char         *file,
+                                         int                 line,
+                                         const char         *func,
+                                         const char         *expr,
+                                         const char * const *arg1,
+                                         const char * const *arg2,
+                                         gsize               first_wrong_idx) G_ANALYZER_NORETURN;
 GLIB_AVAILABLE_IN_ALL
 void    g_assertion_message_cmpnum      (const char     *domain,
                                          const char     *file,
@@ -15731,7 +17320,7 @@ void    g_assertion_message_cmpnum      (const char     *domain,
                                          long double     arg1,
                                          const char     *cmp,
                                          long double     arg2,
-                                         char            numtype);
+                                         char            numtype) G_ANALYZER_NORETURN;
 GLIB_AVAILABLE_IN_ALL
 void    g_assertion_message_error       (const char     *domain,
                                          const char     *file,
@@ -15740,7 +17329,7 @@ void    g_assertion_message_error       (const char     *domain,
                                          const char     *expr,
                                          const GError   *error,
                                          GQuark          error_domain,
-                                         int             error_code);
+                                         int             error_code) G_ANALYZER_NORETURN;
 GLIB_AVAILABLE_IN_ALL
 void    g_test_add_vtable               (const char     *testpath,
                                          gsize           data_size,
@@ -16015,18 +17604,22 @@ void	 g_timer_continue        (GTimer      *timer);
 GLIB_AVAILABLE_IN_ALL
 gdouble  g_timer_elapsed         (GTimer      *timer,
 				  gulong      *microseconds);
+GLIB_AVAILABLE_IN_2_62
+gboolean g_timer_is_active       (GTimer      *timer);
 
 GLIB_AVAILABLE_IN_ALL
 void     g_usleep                (gulong       microseconds);
 
-GLIB_AVAILABLE_IN_ALL
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62
 void     g_time_val_add          (GTimeVal    *time_, 
                                   glong        microseconds);
-GLIB_AVAILABLE_IN_ALL
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_time_new_from_iso8601)
 gboolean g_time_val_from_iso8601 (const gchar *iso_date,
 				  GTimeVal    *time_);
-GLIB_AVAILABLE_IN_ALL
+GLIB_DEPRECATED_IN_2_62_FOR(g_date_time_format)
 gchar*   g_time_val_to_iso8601   (GTimeVal    *time_) G_GNUC_MALLOC;
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -16065,11 +17658,13 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-typedef struct _GTrashStack GTrashStack;
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
+typedef struct _GTrashStack GTrashStack GLIB_DEPRECATED_TYPE_IN_2_48;
 struct _GTrashStack
 {
   GTrashStack *next;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_48;
 
 GLIB_DEPRECATED_IN_2_48
 void      g_trash_stack_push   (GTrashStack **stack_p,
@@ -16080,6 +17675,8 @@ GLIB_DEPRECATED_IN_2_48
 gpointer  g_trash_stack_peek   (GTrashStack **stack_p);
 GLIB_DEPRECATED_IN_2_48
 guint     g_trash_stack_height (GTrashStack **stack_p);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -16118,11 +17715,38 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
+#undef G_TREE_DEBUG
+
 typedef struct _GTree  GTree;
+
+/**
+ * GTreeNode:
+ *
+ * An opaque type which identifies a specific node in a #GTree.
+ *
+ * Since: 2.68
+ */
+typedef struct _GTreeNode GTreeNode;
 
 typedef gboolean (*GTraverseFunc) (gpointer  key,
                                    gpointer  value,
                                    gpointer  data);
+
+/**
+ * GTraverseNodeFunc:
+ * @node: a #GTreeNode
+ * @data: user data passed to g_tree_foreach_node()
+ *
+ * Specifies the type of function passed to g_tree_foreach_node(). It is
+ * passed each node, together with the @user_data parameter passed to
+ * g_tree_foreach_node(). If the function returns %TRUE, the traversal is
+ * stopped.
+ *
+ * Returns: %TRUE to stop the traversal
+ * Since: 2.68
+ */
+typedef gboolean (*GTraverseNodeFunc) (GTreeNode *node,
+                                       gpointer   data);
 
 /* Balanced binary trees
  */
@@ -16136,16 +17760,32 @@ GTree*   g_tree_new_full        (GCompareDataFunc  key_compare_func,
                                  gpointer          key_compare_data,
                                  GDestroyNotify    key_destroy_func,
                                  GDestroyNotify    value_destroy_func);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_node_first (GTree *tree);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_node_last (GTree *tree);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_node_previous (GTreeNode *node);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_node_next (GTreeNode *node);
 GLIB_AVAILABLE_IN_ALL
 GTree*   g_tree_ref             (GTree            *tree);
 GLIB_AVAILABLE_IN_ALL
 void     g_tree_unref           (GTree            *tree);
 GLIB_AVAILABLE_IN_ALL
 void     g_tree_destroy         (GTree            *tree);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_insert_node (GTree *tree,
+                               gpointer key,
+                               gpointer value);
 GLIB_AVAILABLE_IN_ALL
 void     g_tree_insert          (GTree            *tree,
                                  gpointer          key,
                                  gpointer          value);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_replace_node (GTree *tree,
+                                gpointer key,
+                                gpointer value);
 GLIB_AVAILABLE_IN_ALL
 void     g_tree_replace         (GTree            *tree,
                                  gpointer          key,
@@ -16156,6 +17796,13 @@ gboolean g_tree_remove          (GTree            *tree,
 GLIB_AVAILABLE_IN_ALL
 gboolean g_tree_steal           (GTree            *tree,
                                  gconstpointer     key);
+GLIB_AVAILABLE_IN_2_68
+gpointer g_tree_node_key (GTreeNode *node);
+GLIB_AVAILABLE_IN_2_68
+gpointer g_tree_node_value (GTreeNode *node);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_lookup_node (GTree *tree,
+                               gconstpointer key);
 GLIB_AVAILABLE_IN_ALL
 gpointer g_tree_lookup          (GTree            *tree,
                                  gconstpointer     key);
@@ -16168,6 +17815,10 @@ GLIB_AVAILABLE_IN_ALL
 void     g_tree_foreach         (GTree            *tree,
                                  GTraverseFunc	   func,
                                  gpointer	   user_data);
+GLIB_AVAILABLE_IN_2_68
+void g_tree_foreach_node (GTree *tree,
+                          GTraverseNodeFunc func,
+                          gpointer user_data);
 
 GLIB_DEPRECATED
 void     g_tree_traverse        (GTree            *tree,
@@ -16175,26 +17826,42 @@ void     g_tree_traverse        (GTree            *tree,
                                  GTraverseType     traverse_type,
                                  gpointer          user_data);
 
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_search_node (GTree *tree,
+                               GCompareFunc search_func,
+                               gconstpointer user_data);
 GLIB_AVAILABLE_IN_ALL
 gpointer g_tree_search          (GTree            *tree,
                                  GCompareFunc      search_func,
                                  gconstpointer     user_data);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_lower_bound (GTree *tree,
+                               gconstpointer key);
+GLIB_AVAILABLE_IN_2_68
+GTreeNode *g_tree_upper_bound (GTree *tree,
+                               gconstpointer key);
 GLIB_AVAILABLE_IN_ALL
 gint     g_tree_height          (GTree            *tree);
 GLIB_AVAILABLE_IN_ALL
 gint     g_tree_nnodes          (GTree            *tree);
 
+#ifdef G_TREE_DEBUG
+/*< private >*/
+#ifndef __GTK_DOC_IGNORE__
+void g_tree_dump (GTree *tree);
+#endif  /* !__GTK_DOC_IGNORE__ */
+#endif  /* G_TREE_DEBUG */
+
 G_END_DECLS
 
 #endif /* __G_TREE_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright (C) 2006-2007 Red Hat, Inc.
+/* GLIB - Library of useful routines for C programming
+ * Copyright © 2020 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * version 2 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16202,13 +17869,11 @@ G_END_DECLS
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Alexander Larsson <alexl@redhat.com>
+ * Public License along with this library; if not, see
+ * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __G_URI_FUNCS_H__
-#define __G_URI_FUNCS_H__
+#pragma once
 
 #if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
 #error "Only <glib.h> can be included directly."
@@ -16217,58 +17882,396 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
+typedef struct _GUri GUri;
+
+GLIB_AVAILABLE_IN_2_66
+GUri *       g_uri_ref              (GUri *uri);
+GLIB_AVAILABLE_IN_2_66
+void         g_uri_unref            (GUri *uri);
+
+/**
+ * GUriFlags:
+ * @G_URI_FLAGS_NONE: No flags set.
+ * @G_URI_FLAGS_PARSE_RELAXED: Parse the URI more relaxedly than the
+ *     [RFC 3986](https://tools.ietf.org/html/rfc3986) grammar specifies,
+ *     fixing up or ignoring common mistakes in URIs coming from external
+ *     sources. This is also needed for some obscure URI schemes where `;`
+ *     separates the host from the path. Don’t use this flag unless you need to.
+ * @G_URI_FLAGS_HAS_PASSWORD: The userinfo field may contain a password,
+ *     which will be separated from the username by `:`.
+ * @G_URI_FLAGS_HAS_AUTH_PARAMS: The userinfo may contain additional
+ *     authentication-related parameters, which will be separated from
+ *     the username and/or password by `;`.
+ * @G_URI_FLAGS_NON_DNS: The host component should not be assumed to be a
+ *     DNS hostname or IP address (for example, for `smb` URIs with NetBIOS
+ *     hostnames).
+ * @G_URI_FLAGS_ENCODED: When parsing a URI, this indicates that `%`-encoded
+ *     characters in the userinfo, path, query, and fragment fields
+ *     should not be decoded. (And likewise the host field if
+ *     %G_URI_FLAGS_NON_DNS is also set.) When building a URI, it indicates
+ *     that you have already `%`-encoded the components, and so #GUri
+ *     should not do any encoding itself.
+ * @G_URI_FLAGS_ENCODED_QUERY: Same as %G_URI_FLAGS_ENCODED, for the query
+ *     field only.
+ * @G_URI_FLAGS_ENCODED_PATH: Same as %G_URI_FLAGS_ENCODED, for the path only.
+ * @G_URI_FLAGS_ENCODED_FRAGMENT: Same as %G_URI_FLAGS_ENCODED, for the
+ *     fragment only.
+ * @G_URI_FLAGS_SCHEME_NORMALIZE: A scheme-based normalization will be applied.
+ *     For example, when parsing an HTTP URI changing omitted path to `/` and
+ *     omitted port to `80`; and when building a URI, changing empty path to `/`
+ *     and default port `80`). This only supports a subset of known schemes. (Since: 2.68)
+ *
+ * Flags that describe a URI.
+ *
+ * When parsing a URI, if you need to choose different flags based on
+ * the type of URI, you can use g_uri_peek_scheme() on the URI string
+ * to check the scheme first, and use that to decide what flags to
+ * parse it with.
+ *
+ * Since: 2.66
+ */
+GLIB_AVAILABLE_TYPE_IN_2_66
+typedef enum {
+  G_URI_FLAGS_NONE            = 0,
+  G_URI_FLAGS_PARSE_RELAXED   = 1 << 0,
+  G_URI_FLAGS_HAS_PASSWORD    = 1 << 1,
+  G_URI_FLAGS_HAS_AUTH_PARAMS = 1 << 2,
+  G_URI_FLAGS_ENCODED         = 1 << 3,
+  G_URI_FLAGS_NON_DNS         = 1 << 4,
+  G_URI_FLAGS_ENCODED_QUERY   = 1 << 5,
+  G_URI_FLAGS_ENCODED_PATH    = 1 << 6,
+  G_URI_FLAGS_ENCODED_FRAGMENT = 1 << 7,
+  G_URI_FLAGS_SCHEME_NORMALIZE = 1 << 8,
+} GUriFlags;
+
+GLIB_AVAILABLE_IN_2_66
+gboolean     g_uri_split            (const gchar  *uri_ref,
+                                     GUriFlags     flags,
+                                     gchar       **scheme,
+                                     gchar       **userinfo,
+                                     gchar       **host,
+                                     gint         *port,
+                                     gchar       **path,
+                                     gchar       **query,
+                                     gchar       **fragment,
+                                     GError      **error);
+GLIB_AVAILABLE_IN_2_66
+gboolean     g_uri_split_with_user  (const gchar  *uri_ref,
+                                     GUriFlags     flags,
+                                     gchar       **scheme,
+                                     gchar       **user,
+                                     gchar       **password,
+                                     gchar       **auth_params,
+                                     gchar       **host,
+                                     gint         *port,
+                                     gchar       **path,
+                                     gchar       **query,
+                                     gchar       **fragment,
+                                     GError      **error);
+GLIB_AVAILABLE_IN_2_66
+gboolean     g_uri_split_network    (const gchar  *uri_string,
+                                     GUriFlags     flags,
+                                     gchar       **scheme,
+                                     gchar       **host,
+                                     gint         *port,
+                                     GError      **error);
+
+GLIB_AVAILABLE_IN_2_66
+gboolean     g_uri_is_valid         (const gchar  *uri_string,
+                                     GUriFlags     flags,
+                                     GError      **error);
+
+GLIB_AVAILABLE_IN_2_66
+gchar *      g_uri_join             (GUriFlags     flags,
+                                     const gchar  *scheme,
+                                     const gchar  *userinfo,
+                                     const gchar  *host,
+                                     gint          port,
+                                     const gchar  *path,
+                                     const gchar  *query,
+                                     const gchar  *fragment);
+GLIB_AVAILABLE_IN_2_66
+gchar *      g_uri_join_with_user   (GUriFlags     flags,
+                                     const gchar  *scheme,
+                                     const gchar  *user,
+                                     const gchar  *password,
+                                     const gchar  *auth_params,
+                                     const gchar  *host,
+                                     gint          port,
+                                     const gchar  *path,
+                                     const gchar  *query,
+                                     const gchar  *fragment);
+
+GLIB_AVAILABLE_IN_2_66
+GUri *       g_uri_parse            (const gchar  *uri_string,
+                                     GUriFlags     flags,
+                                     GError      **error);
+GLIB_AVAILABLE_IN_2_66
+GUri *       g_uri_parse_relative   (GUri         *base_uri,
+                                     const gchar  *uri_ref,
+                                     GUriFlags     flags,
+                                     GError      **error);
+
+GLIB_AVAILABLE_IN_2_66
+gchar *      g_uri_resolve_relative (const gchar  *base_uri_string,
+                                     const gchar  *uri_ref,
+                                     GUriFlags     flags,
+                                     GError      **error);
+
+GLIB_AVAILABLE_IN_2_66
+GUri *       g_uri_build            (GUriFlags     flags,
+                                     const gchar  *scheme,
+                                     const gchar  *userinfo,
+                                     const gchar  *host,
+                                     gint          port,
+                                     const gchar  *path,
+                                     const gchar  *query,
+                                     const gchar  *fragment);
+GLIB_AVAILABLE_IN_2_66
+GUri *       g_uri_build_with_user  (GUriFlags     flags,
+                                     const gchar  *scheme,
+                                     const gchar  *user,
+                                     const gchar  *password,
+                                     const gchar  *auth_params,
+                                     const gchar  *host,
+                                     gint          port,
+                                     const gchar  *path,
+                                     const gchar  *query,
+                                     const gchar  *fragment);
+
+/**
+ * GUriHideFlags:
+ * @G_URI_HIDE_NONE: No flags set.
+ * @G_URI_HIDE_USERINFO: Hide the userinfo.
+ * @G_URI_HIDE_PASSWORD: Hide the password.
+ * @G_URI_HIDE_AUTH_PARAMS: Hide the auth_params.
+ * @G_URI_HIDE_QUERY: Hide the query.
+ * @G_URI_HIDE_FRAGMENT: Hide the fragment.
+ *
+ * Flags describing what parts of the URI to hide in
+ * g_uri_to_string_partial(). Note that %G_URI_HIDE_PASSWORD and
+ * %G_URI_HIDE_AUTH_PARAMS will only work if the #GUri was parsed with
+ * the corresponding flags.
+ *
+ * Since: 2.66
+ */
+GLIB_AVAILABLE_TYPE_IN_2_66
+typedef enum {
+  G_URI_HIDE_NONE        = 0,
+  G_URI_HIDE_USERINFO    = 1 << 0,
+  G_URI_HIDE_PASSWORD    = 1 << 1,
+  G_URI_HIDE_AUTH_PARAMS = 1 << 2,
+  G_URI_HIDE_QUERY       = 1 << 3,
+  G_URI_HIDE_FRAGMENT    = 1 << 4,
+} GUriHideFlags;
+
+GLIB_AVAILABLE_IN_2_66
+char *       g_uri_to_string         (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+char *       g_uri_to_string_partial (GUri          *uri,
+                                      GUriHideFlags  flags);
+
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_scheme        (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_userinfo      (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_user          (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_password      (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_auth_params   (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_host          (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+gint         g_uri_get_port          (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_path          (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_query         (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+const gchar *g_uri_get_fragment      (GUri          *uri);
+GLIB_AVAILABLE_IN_2_66
+GUriFlags    g_uri_get_flags         (GUri          *uri);
+
+/**
+ * GUriParamsFlags:
+ * @G_URI_PARAMS_NONE: No flags set.
+ * @G_URI_PARAMS_CASE_INSENSITIVE: Parameter names are case insensitive.
+ * @G_URI_PARAMS_WWW_FORM: Replace `+` with space character. Only useful for
+ *     URLs on the web, using the `https` or `http` schemas.
+ * @G_URI_PARAMS_PARSE_RELAXED: See %G_URI_FLAGS_PARSE_RELAXED.
+ *
+ * Flags modifying the way parameters are handled by g_uri_parse_params() and
+ * #GUriParamsIter.
+ *
+ * Since: 2.66
+ */
+GLIB_AVAILABLE_TYPE_IN_2_66
+typedef enum {
+  G_URI_PARAMS_NONE             = 0,
+  G_URI_PARAMS_CASE_INSENSITIVE = 1 << 0,
+  G_URI_PARAMS_WWW_FORM         = 1 << 1,
+  G_URI_PARAMS_PARSE_RELAXED    = 1 << 2,
+} GUriParamsFlags;
+
+GLIB_AVAILABLE_IN_2_66
+GHashTable *g_uri_parse_params       (const gchar    *params,
+                                      gssize          length,
+                                      const gchar    *separators,
+                                      GUriParamsFlags flags,
+                                      GError        **error);
+
+typedef struct _GUriParamsIter GUriParamsIter;
+
+struct _GUriParamsIter
+{
+  /*< private >*/
+  gint     dummy0;
+  gpointer dummy1;
+  gpointer dummy2;
+  guint8   dummy3[256];
+};
+
+GLIB_AVAILABLE_IN_2_66
+void        g_uri_params_iter_init   (GUriParamsIter *iter,
+                                      const gchar    *params,
+                                      gssize          length,
+                                      const gchar    *separators,
+                                      GUriParamsFlags flags);
+
+GLIB_AVAILABLE_IN_2_66
+gboolean    g_uri_params_iter_next   (GUriParamsIter *iter,
+                                      gchar         **attribute,
+                                      gchar         **value,
+                                      GError        **error);
+
+/**
+ * G_URI_ERROR:
+ *
+ * Error domain for URI methods. Errors in this domain will be from
+ * the #GUriError enumeration. See #GError for information on error
+ * domains.
+ *
+ * Since: 2.66
+ */
+#define G_URI_ERROR (g_uri_error_quark ()) GLIB_AVAILABLE_MACRO_IN_2_66
+GLIB_AVAILABLE_IN_2_66
+GQuark g_uri_error_quark (void);
+
+/**
+ * GUriError:
+ * @G_URI_ERROR_FAILED: Generic error if no more specific error is available.
+ *     See the error message for details.
+ * @G_URI_ERROR_BAD_SCHEME: The scheme of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_USER: The user/userinfo of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_PASSWORD: The password of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_AUTH_PARAMS: The authentication parameters of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_HOST: The host of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_PORT: The port of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_PATH: The path of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_QUERY: The query of a URI could not be parsed.
+ * @G_URI_ERROR_BAD_FRAGMENT: The fragment of a URI could not be parsed.
+ *
+ * Error codes returned by #GUri methods.
+ *
+ * Since: 2.66
+ */
+typedef enum {
+  G_URI_ERROR_FAILED,
+  G_URI_ERROR_BAD_SCHEME,
+  G_URI_ERROR_BAD_USER,
+  G_URI_ERROR_BAD_PASSWORD,
+  G_URI_ERROR_BAD_AUTH_PARAMS,
+  G_URI_ERROR_BAD_HOST,
+  G_URI_ERROR_BAD_PORT,
+  G_URI_ERROR_BAD_PATH,
+  G_URI_ERROR_BAD_QUERY,
+  G_URI_ERROR_BAD_FRAGMENT,
+} GUriError;
+
 /**
  * G_URI_RESERVED_CHARS_GENERIC_DELIMITERS:
- * 
- * Generic delimiters characters as defined in RFC 3986. Includes ":/?#[]@".
+ *
+ * Generic delimiters characters as defined in
+ * [RFC 3986](https://tools.ietf.org/html/rfc3986). Includes `:/?#[]@`.
+ *
+ * Since: 2.16
  **/
 #define G_URI_RESERVED_CHARS_GENERIC_DELIMITERS ":/?#[]@"
 
 /**
  * G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS:
- * 
- * Subcomponent delimiter characters as defined in RFC 3986. Includes "!$&'()*+,;=".
+ *
+ * Subcomponent delimiter characters as defined in
+ * [RFC 3986](https://tools.ietf.org/html/rfc3986). Includes `!$&'()*+,;=`.
+ *
+ * Since: 2.16
  **/
 #define G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS "!$&'()*+,;="
 
 /**
  * G_URI_RESERVED_CHARS_ALLOWED_IN_PATH_ELEMENT:
- * 
- * Allowed characters in path elements. Includes "!$&'()*+,;=:@".
+ *
+ * Allowed characters in path elements. Includes `!$&'()*+,;=:@`.
+ *
+ * Since: 2.16
  **/
 #define G_URI_RESERVED_CHARS_ALLOWED_IN_PATH_ELEMENT G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS ":@"
 
 /**
  * G_URI_RESERVED_CHARS_ALLOWED_IN_PATH:
- * 
- * Allowed characters in a path. Includes "!$&'()*+,;=:@/".
+ *
+ * Allowed characters in a path. Includes `!$&'()*+,;=:@/`.
+ *
+ * Since: 2.16
  **/
 #define G_URI_RESERVED_CHARS_ALLOWED_IN_PATH G_URI_RESERVED_CHARS_ALLOWED_IN_PATH_ELEMENT "/"
 
 /**
  * G_URI_RESERVED_CHARS_ALLOWED_IN_USERINFO:
- * 
- * Allowed characters in userinfo as defined in RFC 3986. Includes "!$&'()*+,;=:".
+ *
+ * Allowed characters in userinfo as defined in
+ * [RFC 3986](https://tools.ietf.org/html/rfc3986). Includes `!$&'()*+,;=:`.
+ *
+ * Since: 2.16
  **/
 #define G_URI_RESERVED_CHARS_ALLOWED_IN_USERINFO G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS ":"
 
 GLIB_AVAILABLE_IN_ALL
-char *   g_uri_unescape_string       (const char *escaped_string,
-				      const char *illegal_characters);
+char *      g_uri_unescape_string  (const char *escaped_string,
+                                    const char *illegal_characters);
 GLIB_AVAILABLE_IN_ALL
-char *   g_uri_unescape_segment      (const char *escaped_string,
-				      const char *escaped_string_end,
-				      const char *illegal_characters);
+char *      g_uri_unescape_segment (const char *escaped_string,
+                                    const char *escaped_string_end,
+                                    const char *illegal_characters);
+
 GLIB_AVAILABLE_IN_ALL
-char *   g_uri_parse_scheme          (const char *uri);
+char *      g_uri_parse_scheme     (const char *uri);
+GLIB_AVAILABLE_IN_2_66
+const char *g_uri_peek_scheme      (const char *uri);
+
 GLIB_AVAILABLE_IN_ALL
-char *   g_uri_escape_string         (const char *unescaped,
-				      const char *reserved_chars_allowed,
-				      gboolean    allow_utf8);
+char *      g_uri_escape_string    (const char *unescaped,
+                                    const char *reserved_chars_allowed,
+                                    gboolean    allow_utf8);
+
+GLIB_AVAILABLE_IN_2_66
+GBytes *    g_uri_unescape_bytes   (const char *escaped_string,
+                                    gssize      length,
+                                    const char *illegal_characters,
+                                    GError    **error);
+
+GLIB_AVAILABLE_IN_2_66
+char *      g_uri_escape_bytes     (const guint8 *unescaped,
+                                    gsize         length,
+                                    const char   *reserved_chars_allowed);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
-
-#endif /* __G_URI_FUNCS_H__ */
 /* guuid.h - UUID functions
  *
  * Copyright (C) 2013-2015, 2017 Red Hat, Inc.
@@ -16364,168 +18367,11 @@ const gchar * glib_check_version (guint required_major,
 G_END_DECLS
 
 #endif /*  __G_VERSION_H__ */
-#ifdef G_PLATFORM_WIN32
-/* GLIB - Library of useful routines for C programming
- * Copyright (C) 1995-1997  Peter Mattis, Spencer Kimball and Josh MacDonald
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- */
-
-/*
- * Modified by the GLib Team and others 1997-2000.  See the AUTHORS
- * file for a list of people on the GLib Team.  See the ChangeLog
- * files for a list of changes.  These files are distributed with
- * GLib at ftp://ftp.gtk.org/pub/gtk/.
- */
-
-#ifndef __G_WIN32_H__
-#define __G_WIN32_H__
-
-#if !defined (__GLIB_H_INSIDE__) && !defined (GLIB_COMPILATION)
-#error "Only <glib.h> can be included directly."
-#endif
-
 
 #ifdef G_PLATFORM_WIN32
-
-G_BEGIN_DECLS
-
-typedef struct _GWin32Dispatcher GWin32Dispatcher;
-
-typedef enum _GWin32DispatchMode GWin32DispatchMode;
-
-enum _GWin32DispatchMode
-{
-  G_DISPATCH_MAINLOOP,
-  G_DISPATCH_MESSAGEPUMP
-};
-
-#ifndef MAXPATHLEN
-#define MAXPATHLEN 1024
+#include <glib/gwin32.h>
 #endif
 
-#ifdef G_OS_WIN32
-
-/*
- * To get prototypes for the following POSIXish functions, you have to
- * include the indicated non-POSIX headers. The functions are defined
- * in OLDNAMES.LIB (MSVC) or -lmoldname-msvc (mingw32). But note that
- * for POSIX functions that take or return file names in the system
- * codepage, in many cases you would want to use the GLib wrappers in
- * gstdio.h and UTF-8 instead.
- *
- * getcwd: <direct.h> (MSVC), <io.h> (mingw32)
- * getpid: <process.h>
- * access: <io.h>
- * unlink: <stdio.h> or <io.h>
- * open, read, write, lseek, close: <io.h>
- * rmdir: <io.h>
- * pipe: <io.h> (actually, _pipe())
- */
-
-/* For some POSIX functions that are not provided by the MS runtime,
- * we provide emulation functions in glib, which are prefixed with
- * g_win32_. Or that was the idea at some time, but there is just one
- * of those:
- */
-GLIB_AVAILABLE_IN_ALL
-gint		g_win32_ftruncate	(gint		 f,
-					 guint		 size);
-#endif /* G_OS_WIN32 */
-
-/* The MS setlocale uses locale names of the form "English_United
- * States.1252" etc. We want the Unixish standard form "en", "zh_TW"
- * etc. This function gets the current thread locale from Windows and
- * returns it as a string of the above form for use in forming file
- * names etc. The returned string should be deallocated with g_free().
- */
-GLIB_AVAILABLE_IN_ALL
-gchar* 		g_win32_getlocale  (void);
-
-/* Translate a Win32 error code (as returned by GetLastError()) into
- * the corresponding message. The returned string should be deallocated
- * with g_free().
- */
-GLIB_AVAILABLE_IN_ALL
-gchar*          g_win32_error_message (gint error);
-
-GLIB_DEPRECATED
-gchar*          g_win32_get_package_installation_directory (const gchar *package,
-							    const gchar *dll_name);
-
-GLIB_DEPRECATED
-gchar*          g_win32_get_package_installation_subdirectory (const gchar *package,
-							       const gchar *dll_name,
-							       const gchar *subdir);
-
-GLIB_AVAILABLE_IN_ALL
-gchar*          g_win32_get_package_installation_directory_of_module (gpointer hmodule);
-
-GLIB_DEPRECATED_IN_2_44_FOR(g_win32_check_windows_version)
-guint		g_win32_get_windows_version (void);
-
-GLIB_AVAILABLE_IN_ALL
-gchar*          g_win32_locale_filename_from_utf8 (const gchar *utf8filename);
-
-GLIB_AVAILABLE_IN_2_40
-gchar **        g_win32_get_command_line (void);
-
-GLIB_AVAILABLE_IN_2_62
-GWin32Dispatcher * g_win32_dispatcher_new (GWin32DispatchMode mode, GMainContext * main_context);
-
-GLIB_AVAILABLE_IN_2_62
-void               g_win32_dispatcher_destroy (GWin32Dispatcher * dispatcher);
-
-GLIB_AVAILABLE_IN_2_62
-glong              g_win32_dispatcher_dispatch_message (GWin32Dispatcher * dispatcher, gconstpointer msg);
-
-/* As of GLib 2.14 we only support NT-based Windows */
-#define G_WIN32_IS_NT_BASED() TRUE
-#define G_WIN32_HAVE_WIDECHAR_API() TRUE
-
-/**
- * GWin32OSType:
- * @G_WIN32_OS_ANY: The running system can be a workstation or a server edition of
- *  Windows.  The type of the running system is therefore not checked.
- * @G_WIN32_OS_WORKSTATION: The running system is a workstation edition of Windows,
- *  such as Windows 7 Professional.
- * @G_WIN32_OS_SERVER: The running system is a server edition of Windows, such as
- *  Windows Server 2008 R2.
- *
- * Type of Windows edition to check for at run-time.
- **/
-typedef enum
-{
-  G_WIN32_OS_ANY,
-  G_WIN32_OS_WORKSTATION,
-  G_WIN32_OS_SERVER,
-} GWin32OSType;
-
-GLIB_AVAILABLE_IN_2_44
-gboolean g_win32_check_windows_version (const gint major,
-                                        const gint minor,
-                                        const gint spver,
-                                        const GWin32OSType os_type);
-
-G_END_DECLS
-
-#endif	 /* G_PLATFORM_WIN32 */
-
-#endif /* __G_WIN32_H__ */
-#endif
-
-#ifndef G_DISABLE_DEPRECATED
 /*
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16647,13 +18493,13 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-#ifndef G_DISABLE_DEPRECATED
+typedef struct _GCache          GCache GLIB_DEPRECATED_TYPE_IN_2_26_FOR(GHashTable);
 
-typedef struct _GCache          GCache;
+typedef gpointer        (*GCacheNewFunc)        (gpointer       key) GLIB_DEPRECATED_TYPE_IN_2_26;
+typedef gpointer        (*GCacheDupFunc)        (gpointer       value) GLIB_DEPRECATED_TYPE_IN_2_26;
+typedef void            (*GCacheDestroyFunc)    (gpointer       value) GLIB_DEPRECATED_TYPE_IN_2_26;
 
-typedef gpointer        (*GCacheNewFunc)        (gpointer       key);
-typedef gpointer        (*GCacheDupFunc)        (gpointer       value);
-typedef void            (*GCacheDestroyFunc)    (gpointer       value);
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 
 /* Caches
  */
@@ -16682,7 +18528,7 @@ void     g_cache_value_foreach (GCache            *cache,
                                 GHFunc             func,
                                 gpointer           user_data);
 
-#endif
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -16803,8 +18649,6 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-#ifndef G_DISABLE_DEPRECATED
-
 /* ============== Compat main loop stuff ================== */
 
 /**
@@ -16819,7 +18663,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_loop_new() instead
  */
-#define         g_main_new(is_running)  g_main_loop_new (NULL, is_running)
+#define         g_main_new(is_running)  g_main_loop_new (NULL, is_running) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_loop_new)
 
 /**
  * g_main_run:
@@ -16829,7 +18673,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_loop_run() instead
  */
-#define         g_main_run(loop)        g_main_loop_run(loop)
+#define         g_main_run(loop)        g_main_loop_run(loop) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_loop_run)
 
 /**
  * g_main_quit:
@@ -16840,7 +18684,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_loop_quit() instead
  */
-#define g_main_quit(loop)       g_main_loop_quit(loop)
+#define g_main_quit(loop)       g_main_loop_quit(loop) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_loop_quit)
 
 /**
  * g_main_destroy:
@@ -16850,7 +18694,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_loop_unref() instead
  */
-#define g_main_destroy(loop)    g_main_loop_unref(loop)
+#define g_main_destroy(loop)    g_main_loop_unref(loop) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_loop_unref)
 
 /**
  * g_main_is_running:
@@ -16862,7 +18706,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_loop_is_running() instead
  */
-#define g_main_is_running(loop) g_main_loop_is_running(loop)
+#define g_main_is_running(loop) g_main_loop_is_running(loop) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_loop_is_running)
 
 /**
  * g_main_iteration:
@@ -16877,7 +18721,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_context_iteration() instead.
  */
-#define g_main_iteration(may_block) g_main_context_iteration (NULL, may_block)
+#define g_main_iteration(may_block) g_main_context_iteration (NULL, may_block) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_context_iteration)
 
 /**
  * g_main_pending:
@@ -16887,9 +18731,9 @@ G_BEGIN_DECLS
  *
  * Returns: %TRUE if any events are pending.
  *
- * Deprected: 2.2: Use g_main_context_pending() instead.
+ * Deprecated: 2.2: Use g_main_context_pending() instead.
  */
-#define g_main_pending()            g_main_context_pending (NULL)
+#define g_main_pending()            g_main_context_pending (NULL) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_context_pending)
 
 /**
  * g_main_set_poll_func:
@@ -16900,9 +18744,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.2: Use g_main_context_set_poll_func() again
  */
-#define g_main_set_poll_func(func)  g_main_context_set_poll_func (NULL, func)
-
-#endif
+#define g_main_set_poll_func(func)  g_main_context_set_poll_func (NULL, func) GLIB_DEPRECATED_MACRO_IN_2_26_FOR(g_main_context_set_poll_func)
 
 G_END_DECLS
 
@@ -17045,7 +18887,7 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-#ifndef G_DISABLE_DEPRECATED
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 
 typedef enum
 {
@@ -17053,9 +18895,7 @@ typedef enum
   G_THREAD_PRIORITY_NORMAL,
   G_THREAD_PRIORITY_HIGH,
   G_THREAD_PRIORITY_URGENT
-} GThreadPriority;
-
-#endif
+} GThreadPriority GLIB_DEPRECATED_TYPE_IN_2_32;
 
 struct  _GThread
 {
@@ -17066,9 +18906,7 @@ struct  _GThread
   GThreadPriority priority;
 };
 
-#ifndef G_DISABLE_DEPRECATED
-
-typedef struct _GThreadFunctions GThreadFunctions;
+typedef struct _GThreadFunctions GThreadFunctions GLIB_DEPRECATED_TYPE_IN_2_32;
 struct _GThreadFunctions
 {
   GMutex*  (*mutex_new)           (void);
@@ -17105,7 +18943,7 @@ struct _GThreadFunctions
   void      (*thread_self)        (gpointer              thread);
   gboolean  (*thread_equal)       (gpointer              thread1,
                                    gpointer              thread2);
-};
+} GLIB_DEPRECATED_TYPE_IN_2_32;
 
 GLIB_VAR GThreadFunctions       g_thread_functions_for_glib_use;
 GLIB_VAR gboolean               g_thread_use_default_impl;
@@ -17140,8 +18978,8 @@ void     g_thread_foreach      (GFunc             thread_func,
 #include <pthread.h>
 #endif
 
-#define g_static_mutex_get_mutex g_static_mutex_get_mutex_impl
-#define G_STATIC_MUTEX_INIT { NULL }
+#define g_static_mutex_get_mutex g_static_mutex_get_mutex_impl GLIB_DEPRECATED_MACRO_IN_2_32
+#define G_STATIC_MUTEX_INIT { NULL } GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_mutex_init)
 typedef struct
 {
   GMutex *mutex;
@@ -17149,14 +18987,14 @@ typedef struct
   /* only for ABI compatibility reasons */
   pthread_mutex_t unused;
 #endif
-} GStaticMutex;
+} GStaticMutex GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GMutex);
 
 #define g_static_mutex_lock(mutex) \
-    g_mutex_lock (g_static_mutex_get_mutex (mutex))
+    g_mutex_lock (g_static_mutex_get_mutex (mutex)) GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_mutex_lock)
 #define g_static_mutex_trylock(mutex) \
-    g_mutex_trylock (g_static_mutex_get_mutex (mutex))
+    g_mutex_trylock (g_static_mutex_get_mutex (mutex)) GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_mutex_trylock)
 #define g_static_mutex_unlock(mutex) \
-    g_mutex_unlock (g_static_mutex_get_mutex (mutex))
+    g_mutex_unlock (g_static_mutex_get_mutex (mutex)) GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_mutex_unlock)
 
 GLIB_DEPRECATED_IN_2_32_FOR(g_mutex_init)
 void    g_static_mutex_init           (GStaticMutex *mutex);
@@ -17165,7 +19003,7 @@ void    g_static_mutex_free           (GStaticMutex *mutex);
 GLIB_DEPRECATED_IN_2_32_FOR(GMutex)
 GMutex *g_static_mutex_get_mutex_impl (GStaticMutex *mutex);
 
-typedef struct _GStaticRecMutex GStaticRecMutex;
+typedef struct _GStaticRecMutex GStaticRecMutex GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GRecMutex);
 struct _GStaticRecMutex
 {
   /*< private >*/
@@ -17181,9 +19019,9 @@ struct _GStaticRecMutex
 #endif
     gdouble dummy;
   } unused;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GRecMutex);
 
-#define G_STATIC_REC_MUTEX_INIT { G_STATIC_MUTEX_INIT, 0, { 0 } }
+#define G_STATIC_REC_MUTEX_INIT { G_STATIC_MUTEX_INIT, 0, { 0 } } GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_rec_mutex_init)
 GLIB_DEPRECATED_IN_2_32_FOR(g_rec_mutex_init)
 void     g_static_rec_mutex_init        (GStaticRecMutex *mutex);
 
@@ -17206,7 +19044,7 @@ guint    g_static_rec_mutex_unlock_full (GStaticRecMutex *mutex);
 GLIB_DEPRECATED_IN_2_32_FOR(g_rec_mutex_free)
 void     g_static_rec_mutex_free        (GStaticRecMutex *mutex);
 
-typedef struct _GStaticRWLock GStaticRWLock;
+typedef struct _GStaticRWLock GStaticRWLock GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GRWLock);
 struct _GStaticRWLock
 {
   /*< private >*/
@@ -17217,9 +19055,9 @@ struct _GStaticRWLock
   gboolean have_writer;
   guint want_to_read;
   guint want_to_write;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GRWLock);
 
-#define G_STATIC_RW_LOCK_INIT { G_STATIC_MUTEX_INIT, NULL, NULL, 0, FALSE, 0, 0 }
+#define G_STATIC_RW_LOCK_INIT { G_STATIC_MUTEX_INIT, NULL, NULL, 0, FALSE, 0, 0 } GLIB_DEPRECATED_MACRO_IN_2_32_FOR(g_rw_lock_init)
 
 GLIB_DEPRECATED_IN_2_32_FOR(g_rw_lock_init)
 void      g_static_rw_lock_init           (GStaticRWLock *lock);
@@ -17248,14 +19086,14 @@ void      g_static_rw_lock_free           (GStaticRWLock *lock);
 GLIB_DEPRECATED_IN_2_32
 GPrivate *      g_private_new             (GDestroyNotify notify);
 
-typedef struct _GStaticPrivate  GStaticPrivate;
+typedef struct _GStaticPrivate  GStaticPrivate GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GPrivate);
 struct _GStaticPrivate
 {
   /*< private >*/
   guint index;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_32_FOR(GPrivate);
 
-#define G_STATIC_PRIVATE_INIT { 0 }
+#define G_STATIC_PRIVATE_INIT { 0 } GLIB_DEPRECATED_MACRO_IN_2_32_FOR(G_PRIVATE_INIT)
 GLIB_DEPRECATED_IN_2_32
 void     g_static_private_init           (GStaticPrivate *private_key);
 
@@ -17283,7 +19121,7 @@ gboolean g_thread_get_initialized        (void);
 
 GLIB_VAR gboolean g_threads_got_initialized;
 
-#define g_thread_supported()     (1)
+#define g_thread_supported()     (1) GLIB_DEPRECATED_MACRO_IN_2_32
 
 GLIB_DEPRECATED_IN_2_32
 GMutex *        g_mutex_new             (void);
@@ -17298,12 +19136,11 @@ gboolean        g_cond_timed_wait       (GCond          *cond,
                                          GMutex         *mutex,
                                          GTimeVal       *timeval);
 
-#endif
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
 #endif /* __G_DEPRECATED_THREAD_H__ */
-#endif /* G_DISABLE_DEPRECATED */
 
 /*
  * Copyright © 2015 Canonical Limited
@@ -17342,6 +19179,10 @@ g_autoptr_cleanup_gstring_free (GString *string)
     g_string_free (string, TRUE);
 }
 
+/* Ignore deprecations in case we refer to a type which was added in a more
+ * recent GLib version than the user’s #GLIB_VERSION_MAX_ALLOWED definition. */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
 /* If adding a cleanup here, please also add a test case to
  * glib/tests/autoptr.c
  */
@@ -17350,6 +19191,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GBookmarkFile, g_bookmark_file_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GBytes, g_bytes_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GChecksum, g_checksum_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDateTime, g_date_time_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDate, g_date_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDir, g_dir_close)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GError, g_error_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GHashTable, g_hash_table_unref)
@@ -17361,6 +19203,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GArray, g_array_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GPtrArray, g_ptr_array_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GByteArray, g_byte_array_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMainContext, g_main_context_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMainContextPusher, g_main_context_pusher_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMainLoop, g_main_loop_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSource, g_source_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMappedFile, g_mapped_file_unref)
@@ -17379,10 +19222,13 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSequence, g_sequence_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSList, g_slist_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GString, g_autoptr_cleanup_gstring_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GStringChunk, g_string_chunk_free)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GStrvBuilder, g_strv_builder_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GThread, g_thread_unref)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(GMutex, g_mutex_clear)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMutexLocker, g_mutex_locker_free)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GRecMutexLocker, g_rec_mutex_locker_free)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GRWLockWriterLocker, g_rw_lock_writer_locker_free)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GRWLockReaderLocker, g_rw_lock_reader_locker_free)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(GCond, g_cond_clear)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTimer, g_timer_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTimeZone, g_time_zone_unref)
@@ -17395,28 +19241,31 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GVariantDict, g_variant_dict_unref)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(GVariantDict, g_variant_dict_clear)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GVariantType, g_variant_type_free)
 G_DEFINE_AUTO_CLEANUP_FREE_FUNC(GStrv, g_strfreev, NULL)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GRefString, g_ref_string_release)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GRefString, g_ref_string_release)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GUri, g_uri_unref)
+
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 #undef __GLIB_H_INSIDE__
 
 G_BEGIN_DECLS
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_init                               (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_shutdown                           (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_deinit                             (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_prepare_to_fork                    (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_recover_from_fork_in_parent        (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            glib_recover_from_fork_in_child         (void);
 
 G_END_DECLS
@@ -17443,7 +19292,6 @@ G_END_DECLS
 
 #define __GLIB_GOBJECT_H_INSIDE__
 
-/* topmost include file for GObject header files */
 /* gbinding.h: Binding for object properties
  *
  * Copyright (C) 2010  Intel Corp.
@@ -17693,7 +19541,9 @@ G_BEGIN_DECLS
 
 /* Reserved fundamental type numbers to create new fundamental
  * type IDs with G_TYPE_MAKE_FUNDAMENTAL().
- * Send email to gtk-devel-list@gnome.org for reservations.
+ *
+ * Open an issue on https://gitlab.gnome.org/GNOME/glib/issues/new for
+ * reservations.
  */
 /**
  * G_TYPE_FUNDAMENTAL_SHIFT:
@@ -18133,7 +19983,7 @@ struct _GTypeQuery
  *   `your_type_get_instance_private()` function instead
  * Returns: (not nullable): a pointer to the private data structure
  */
-#define G_TYPE_INSTANCE_GET_PRIVATE(instance, g_type, c_type)   ((c_type*) g_type_instance_get_private ((GTypeInstance*) (instance), (g_type)))
+#define G_TYPE_INSTANCE_GET_PRIVATE(instance, g_type, c_type)   ((c_type*) g_type_instance_get_private ((GTypeInstance*) (instance), (g_type))) GLIB_DEPRECATED_MACRO_IN_2_58_FOR(G_ADD_PRIVATE)
 
 /**
  * G_TYPE_CLASS_GET_PRIVATE:
@@ -18175,14 +20025,17 @@ typedef enum	/*< skip >*/
   G_TYPE_DEBUG_SIGNALS	= 1 << 1,
   G_TYPE_DEBUG_INSTANCE_COUNT = 1 << 2,
   G_TYPE_DEBUG_MASK	= 0x07
-} GTypeDebugFlags;
+} GTypeDebugFlags GLIB_DEPRECATED_TYPE_IN_2_36;
 
 
 /* --- prototypes --- */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED_IN_2_36
 void                  g_type_init                    (void);
 GLIB_DEPRECATED_IN_2_36
 void                  g_type_init_with_debug_flags   (GTypeDebugFlags  debug_flags);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 const gchar *         g_type_name                    (GType            type);
 GLIB_AVAILABLE_IN_ALL
@@ -18471,7 +20324,7 @@ typedef void     (*GTypeInterfaceCheckFunc)  (gpointer	       check_data,
 /**
  * GTypeFundamentalFlags:
  * @G_TYPE_FLAG_CLASSED: Indicates a classed type
- * @G_TYPE_FLAG_INSTANTIATABLE: Indicates an instantiable type (implies classed)
+ * @G_TYPE_FLAG_INSTANTIATABLE: Indicates an instantiatable type (implies classed)
  * @G_TYPE_FLAG_DERIVABLE: Indicates a flat derivable type
  * @G_TYPE_FLAG_DEEP_DERIVABLE: Indicates a deep derivable type (implies derivable)
  * 
@@ -18668,17 +20521,13 @@ struct _GInterfaceInfo
  *  array.  To deviate from our string example for a moment, and taking
  *  a look at an exemplary implementation for collect_value() of
  *  #GObject:
- *  |[<!-- language="C" -->
- *  if (collect_values[0].v_pointer)
- *  {
+ *  |[<!-- language="C" --> 
  *    GObject *object = G_OBJECT (collect_values[0].v_pointer);
+ *    g_return_val_if_fail (object != NULL,
+ *       g_strdup_printf ("Object passed as invalid NULL pointer"));
  *    // never honour G_VALUE_NOCOPY_CONTENTS for ref-counted types
  *    value->data[0].v_pointer = g_object_ref (object);
  *    return NULL;
- *  }
- *  else
- *    return g_strdup_printf ("Object passed as invalid NULL pointer");
- *  }
  *  ]|
  *  The reference count for valid objects is always incremented,
  *  regardless of @collect_flags. For invalid objects, the example
@@ -18710,8 +20559,8 @@ struct _GInterfaceInfo
  *  To complete the string example:
  *  |[<!-- language="C" -->
  *  gchar **string_p = collect_values[0].v_pointer;
- *  if (!string_p)
- *    return g_strdup_printf ("string location passed as NULL");
+ *  g_return_val_if_fail (string_p != NULL,
+ *      g_strdup_printf ("string location passed as NULL"));
  *  if (collect_flags & G_VALUE_NOCOPY_CONTENTS)
  *    *string_p = value->data[0].v_pointer;
  *  else
@@ -18721,8 +20570,8 @@ struct _GInterfaceInfo
  *  reference-counted types:
  *  |[<!-- language="C" -->
  *  GObject **object_p = collect_values[0].v_pointer;
- *  if (!object_p)
- *    return g_strdup_printf ("object location passed as NULL");
+ *  g_return_val_if_fail (object_p != NULL,
+ *    g_strdup_printf ("object location passed as NULL"));
  *  if (!value->data[0].v_pointer)
  *    *object_p = NULL;
  *  else if (collect_flags & G_VALUE_NOCOPY_CONTENTS) // always honour
@@ -18794,6 +20643,9 @@ void  g_type_interface_add_prerequisite (GType			     interface_type,
 GLIB_AVAILABLE_IN_ALL
 GType*g_type_interface_prerequisites    (GType                       interface_type,
 					 guint                      *n_prerequisites);
+GLIB_AVAILABLE_IN_2_68
+GType g_type_interface_instantiatable_prerequisite
+                                        (GType                       interface_type);
 GLIB_DEPRECATED_IN_2_58
 void     g_type_class_add_private       (gpointer                    g_class,
                                          gsize                       private_size);
@@ -18896,10 +20748,11 @@ guint     g_type_get_type_registration_serial (void);
   typedef struct { ParentName##Class parent_class; } ModuleObjName##Class;                               \
                                                                                                          \
   _GLIB_DEFINE_AUTOPTR_CHAINUP (ModuleObjName, ParentName)                                               \
+  G_DEFINE_AUTOPTR_CLEANUP_FUNC (ModuleObjName##Class, g_type_class_unref)                               \
                                                                                                          \
-  static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                                     \
+  G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                       \
     return G_TYPE_CHECK_INSTANCE_CAST (ptr, module_obj_name##_get_type (), ModuleObjName); }             \
-  static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                                         \
+  G_GNUC_UNUSED static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                           \
     return G_TYPE_CHECK_INSTANCE_TYPE (ptr, module_obj_name##_get_type ()); }                            \
   G_GNUC_END_IGNORE_DEPRECATIONS
 
@@ -18912,8 +20765,8 @@ guint     g_type_get_type_registration_serial (void);
  * @OBJ_NAME: The bare name of the type, in all caps (like 'WIDGET')
  * @ParentName: the name of the parent type, in camel case (like GtkWidget)
  *
- * A convenience macro for emitting the usual declarations in the header file for a type which will is intended
- * to be subclassed.
+ * A convenience macro for emitting the usual declarations in the
+ * header file for a type which is intended to be subclassed.
  *
  * You might use it in a header as follows:
  *
@@ -18987,16 +20840,17 @@ guint     g_type_get_type_registration_serial (void);
   struct _##ModuleObjName { ParentName parent_instance; };                                               \
                                                                                                          \
   _GLIB_DEFINE_AUTOPTR_CHAINUP (ModuleObjName, ParentName)                                               \
+  G_DEFINE_AUTOPTR_CLEANUP_FUNC (ModuleObjName##Class, g_type_class_unref)                               \
                                                                                                          \
-  static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                                     \
+  G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                       \
     return G_TYPE_CHECK_INSTANCE_CAST (ptr, module_obj_name##_get_type (), ModuleObjName); }             \
-  static inline ModuleObjName##Class * MODULE##_##OBJ_NAME##_CLASS (gpointer ptr) {                      \
+  G_GNUC_UNUSED static inline ModuleObjName##Class * MODULE##_##OBJ_NAME##_CLASS (gpointer ptr) {        \
     return G_TYPE_CHECK_CLASS_CAST (ptr, module_obj_name##_get_type (), ModuleObjName##Class); }         \
-  static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                                         \
+  G_GNUC_UNUSED static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                           \
     return G_TYPE_CHECK_INSTANCE_TYPE (ptr, module_obj_name##_get_type ()); }                            \
-  static inline gboolean MODULE##_IS_##OBJ_NAME##_CLASS (gpointer ptr) {                                 \
+  G_GNUC_UNUSED static inline gboolean MODULE##_IS_##OBJ_NAME##_CLASS (gpointer ptr) {                   \
     return G_TYPE_CHECK_CLASS_TYPE (ptr, module_obj_name##_get_type ()); }                               \
-  static inline ModuleObjName##Class * MODULE##_##OBJ_NAME##_GET_CLASS (gpointer ptr) {                  \
+  G_GNUC_UNUSED static inline ModuleObjName##Class * MODULE##_##OBJ_NAME##_GET_CLASS (gpointer ptr) {    \
     return G_TYPE_INSTANCE_GET_CLASS (ptr, module_obj_name##_get_type (), ModuleObjName##Class); }       \
   G_GNUC_END_IGNORE_DEPRECATIONS
 
@@ -19066,11 +20920,11 @@ guint     g_type_get_type_registration_serial (void);
                                                                                                            \
   _GLIB_DEFINE_AUTOPTR_CHAINUP (ModuleObjName, PrerequisiteName)                                           \
                                                                                                            \
-  static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                                       \
+  G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME (gpointer ptr) {                         \
     return G_TYPE_CHECK_INSTANCE_CAST (ptr, module_obj_name##_get_type (), ModuleObjName); }               \
-  static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                                           \
+  G_GNUC_UNUSED static inline gboolean MODULE##_IS_##OBJ_NAME (gpointer ptr) {                             \
     return G_TYPE_CHECK_INSTANCE_TYPE (ptr, module_obj_name##_get_type ()); }                              \
-  static inline ModuleObjName##Interface * MODULE##_##OBJ_NAME##_GET_IFACE (gpointer ptr) {                \
+  G_GNUC_UNUSED static inline ModuleObjName##Interface * MODULE##_##OBJ_NAME##_GET_IFACE (gpointer ptr) {  \
     return G_TYPE_INSTANCE_GET_INTERFACE (ptr, module_obj_name##_get_type (), ModuleObjName##Interface); } \
   G_GNUC_END_IGNORE_DEPRECATIONS
 
@@ -19121,6 +20975,11 @@ guint     g_type_get_type_registration_serial (void);
  * 
  * Note that private structs added with this macros must have a struct
  * name of the form @TN Private.
+ *
+ * The private instance data can be retrieved using the automatically generated
+ * getter function `t_n_get_instance_private()`.
+ *
+ * See also: G_ADD_PRIVATE()
  *
  * Since: 2.38
  */
@@ -19186,6 +21045,7 @@ guint     g_type_get_type_registration_serial (void);
  *                         gtk_gadget,
  *                         GTK_TYPE_WIDGET,
  *                         0,
+ *                         G_ADD_PRIVATE (GtkGadget)
  *                         G_IMPLEMENT_INTERFACE (TYPE_GIZMO,
  *                                                gtk_gadget_gizmo_init));
  * ]|
@@ -19194,17 +21054,24 @@ guint     g_type_get_type_registration_serial (void);
  * static void     gtk_gadget_init       (GtkGadget      *self);
  * static void     gtk_gadget_class_init (GtkGadgetClass *klass);
  * static gpointer gtk_gadget_parent_class = NULL;
+ * static gint     GtkGadget_private_offset;
  * static void     gtk_gadget_class_intern_init (gpointer klass)
  * {
  *   gtk_gadget_parent_class = g_type_class_peek_parent (klass);
+ *   if (GtkGadget_private_offset != 0)
+ *     g_type_class_adjust_private_offset (klass, &GtkGadget_private_offset);
  *   gtk_gadget_class_init ((GtkGadgetClass*) klass);
+ * }
+ * static inline gpointer gtk_gadget_get_instance_private (GtkGadget *self)
+ * {
+ *   return (G_STRUCT_MEMBER_P (self, GtkGadget_private_offset));
  * }
  *
  * GType
  * gtk_gadget_get_type (void)
  * {
- *   static volatile gsize g_define_type_id__volatile = 0;
- *   if (g_once_init_enter (&g_define_type_id__volatile))
+ *   static gsize static_g_define_type_id = 0;
+ *   if (g_once_init_enter (&static_g_define_type_id))
  *     {
  *       GType g_define_type_id =
  *         g_type_register_static_simple (GTK_TYPE_WIDGET,
@@ -19215,14 +21082,18 @@ guint     g_type_get_type_registration_serial (void);
  *                                        (GInstanceInitFunc) gtk_gadget_init,
  *                                        0);
  *       {
+ *         GtkGadget_private_offset =
+ *           g_type_add_instance_private (g_define_type_id, sizeof (GtkGadgetPrivate));
+ *       }
+ *       {
  *         const GInterfaceInfo g_implement_interface_info = {
  *           (GInterfaceInitFunc) gtk_gadget_gizmo_init
  *         };
  *         g_type_add_interface_static (g_define_type_id, TYPE_GIZMO, &g_implement_interface_info);
  *       }
- *       g_once_init_leave (&g_define_type_id__volatile, g_define_type_id);
+ *       g_once_init_leave (&static_g_define_type_id, g_define_type_id);
  *     }
- *   return g_define_type_id__volatile;
+ *   return static_g_define_type_id;
  * }
  * ]|
  * The only pieces which have to be manually provided are the definitions of
@@ -19358,9 +21229,9 @@ guint     g_type_get_type_registration_serial (void);
  * Also note that private structs added with these macros must have a struct
  * name of the form `TypeNamePrivate`.
  *
- * It is safe to call _get_instance_private on %NULL or invalid object since
- * it's only adding an offset to the instance pointer. In that case the returned
- * pointer must not be dereferenced.
+ * It is safe to call the `_get_instance_private` function on %NULL or invalid
+ * objects since it's only adding an offset to the instance pointer. In that
+ * case the returned pointer must not be dereferenced.
  *
  * Since: 2.38
  */
@@ -19467,17 +21338,17 @@ type_name##_get_instance_private (TypeName *self) \
 GType \
 type_name##_get_type (void) \
 { \
-  static volatile gsize g_define_type_id__volatile = 0;
+  static gsize static_g_define_type_id = 0;
   /* Prelude goes here */
 
 /* Added for _G_DEFINE_TYPE_EXTENDED_WITH_PRELUDE */
 #define _G_DEFINE_TYPE_EXTENDED_BEGIN_REGISTER(TypeName, type_name, TYPE_PARENT, flags) \
-  if (g_once_init_enter (&g_define_type_id__volatile))  \
+  if (g_once_init_enter (&static_g_define_type_id)) \
     { \
       GType g_define_type_id = type_name##_get_type_once (); \
-      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id); \
+      g_once_init_leave (&static_g_define_type_id, g_define_type_id); \
     }					\
-  return g_define_type_id__volatile;	\
+  return static_g_define_type_id; \
 } /* closes type_name##_get_type() */ \
 \
 G_GNUC_NO_INLINE \
@@ -19513,8 +21384,8 @@ static void     type_name##_default_init        (TypeName##Interface *klass); \
 GType \
 type_name##_get_type (void) \
 { \
-  static volatile gsize g_define_type_id__volatile = 0; \
-  if (g_once_init_enter (&g_define_type_id__volatile))  \
+  static gsize static_g_define_type_id = 0; \
+  if (g_once_init_enter (&static_g_define_type_id)) \
     { \
       GType g_define_type_id = \
         g_type_register_static_simple (G_TYPE_INTERFACE, \
@@ -19530,9 +21401,9 @@ type_name##_get_type (void) \
 #define _G_DEFINE_INTERFACE_EXTENDED_END()	\
         /* following custom code */		\
       }						\
-      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id); \
+      g_once_init_leave (&static_g_define_type_id, g_define_type_id); \
     }						\
-  return g_define_type_id__volatile;			\
+  return static_g_define_type_id; \
 } /* closes type_name##_get_type() */
 
 /**
@@ -19587,13 +21458,13 @@ static GType type_name##_get_type_once (void); \
 GType \
 type_name##_get_type (void) \
 { \
-  static volatile gsize g_define_type_id__volatile = 0; \
-  if (g_once_init_enter (&g_define_type_id__volatile))  \
+  static gsize static_g_define_type_id = 0; \
+  if (g_once_init_enter (&static_g_define_type_id)) \
     { \
       GType g_define_type_id = type_name##_get_type_once (); \
-      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id); \
+      g_once_init_leave (&static_g_define_type_id, g_define_type_id); \
     } \
-  return g_define_type_id__volatile; \
+  return static_g_define_type_id; \
 } \
 \
 G_GNUC_NO_INLINE \
@@ -19624,13 +21495,13 @@ static GType type_name##_get_type_once (void); \
 GType \
 type_name##_get_type (void) \
 { \
-  static volatile gsize g_define_type_id__volatile = 0; \
-  if (g_once_init_enter (&g_define_type_id__volatile))  \
+  static gsize static_g_define_type_id = 0; \
+  if (g_once_init_enter (&static_g_define_type_id)) \
     { \
       GType g_define_type_id = type_name##_get_type_once (); \
-      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id); \
+      g_once_init_leave (&static_g_define_type_id, g_define_type_id); \
     } \
-  return g_define_type_id__volatile; \
+  return static_g_define_type_id; \
 } \
 \
 G_GNUC_NO_INLINE \
@@ -19677,13 +21548,13 @@ static GType type_name##_get_type_once (void); \
 GType \
 type_name##_get_type (void) \
 { \
-  static volatile gsize g_define_type_id__volatile = 0; \
-  if (g_once_init_enter (&g_define_type_id__volatile))  \
+  static gsize static_g_define_type_id = 0; \
+  if (g_once_init_enter (&static_g_define_type_id)) \
     { \
       GType g_define_type_id = type_name##_get_type_once (); \
-      g_once_init_leave (&g_define_type_id__volatile, g_define_type_id); \
+      g_once_init_leave (&static_g_define_type_id, g_define_type_id); \
     } \
-  return g_define_type_id__volatile; \
+  return static_g_define_type_id; \
 } \
 \
 G_GNUC_NO_INLINE \
@@ -19999,9 +21870,20 @@ void	g_value_register_transform_func	(GType		 src_type,
  *
  * If passed to G_VALUE_COLLECT(), allocated data won't be copied
  * but used verbatim. This does not affect ref-counted types like
- * objects.
+ * objects. This does not affect usage of g_value_copy(), the data will
+ * be copied if it is not ref-counted.
  */
 #define G_VALUE_NOCOPY_CONTENTS (1 << 27)
+
+/**
+ * G_VALUE_INTERNED_STRING:
+ *
+ * For string values, indicates that the string contained is canonical and will
+ * exist for the duration of the process. See g_value_set_interned_string().
+ *
+ * Since: 2.66
+ */
+#define G_VALUE_INTERNED_STRING (1 << 28) GLIB_AVAILABLE_MACRO_IN_2_66
 
 /**
  * G_VALUE_INIT:
@@ -20179,9 +22061,7 @@ typedef enum
   G_PARAM_CONSTRUCT_ONLY      = 1 << 3,
   G_PARAM_LAX_VALIDATION      = 1 << 4,
   G_PARAM_STATIC_NAME	      = 1 << 5,
-#ifndef G_DISABLE_DEPRECATED
-  G_PARAM_PRIVATE	      = G_PARAM_STATIC_NAME,
-#endif
+  G_PARAM_PRIVATE GLIB_DEPRECATED_ENUMERATOR_IN_2_26 = G_PARAM_STATIC_NAME,
   G_PARAM_STATIC_NICK	      = 1 << 6,
   G_PARAM_STATIC_BLURB	      = 1 << 7,
   /* User defined flags go here */
@@ -20216,7 +22096,7 @@ typedef enum
 /* --- typedefs & structures --- */
 typedef struct _GParamSpec      GParamSpec;
 typedef struct _GParamSpecClass GParamSpecClass;
-typedef struct _GParameter	GParameter;
+typedef struct _GParameter	GParameter GLIB_DEPRECATED_TYPE_IN_2_54;
 typedef struct _GParamSpecPool  GParamSpecPool;
 /**
  * GParamSpec: (ref-func g_param_spec_ref_sink) (unref-func g_param_spec_uref) (set-value-func g_value_set_param) (get-value-func g_value_get_param)
@@ -20297,7 +22177,7 @@ struct _GParameter /* auxiliary structure for _setv() variants */
 {
   const gchar *name;
   GValue       value;
-};
+} GLIB_DEPRECATED_TYPE_IN_2_54;
 
 
 /* --- prototypes --- */
@@ -20332,7 +22212,7 @@ void		g_param_value_set_default	(GParamSpec    *pspec,
 						 GValue	       *value);
 GLIB_AVAILABLE_IN_ALL
 gboolean	g_param_value_defaults		(GParamSpec    *pspec,
-						 GValue	       *value);
+						 const GValue  *value);
 GLIB_AVAILABLE_IN_ALL
 gboolean	g_param_value_validate		(GParamSpec    *pspec,
 						 GValue	       *value);
@@ -20419,6 +22299,9 @@ struct _GParamSpecTypeInfo
 GLIB_AVAILABLE_IN_ALL
 GType	g_param_type_register_static	(const gchar		  *name,
 					 const GParamSpecTypeInfo *pspec_info);
+
+GLIB_AVAILABLE_IN_2_66
+gboolean g_param_spec_is_valid_name    (const gchar              *name);
 
 /* For registering builting types */
 GType  _g_param_type_register_static_constant (const gchar              *name,
@@ -20651,20 +22534,20 @@ struct _GClosureNotifyData
 struct _GClosure
 {
   /*< private >*/
-  volatile      	guint	 ref_count : 15;
+  guint ref_count : 15;  /* (atomic) */
   /* meta_marshal is not used anymore but must be zero for historical reasons
      as it was exposed in the G_CLOSURE_N_NOTIFIERS macro */
-  volatile       	guint	 meta_marshal_nouse : 1;
-  volatile       	guint	 n_guards : 1;
-  volatile       	guint	 n_fnotifiers : 2;	/* finalization notifiers */
-  volatile       	guint	 n_inotifiers : 8;	/* invalidation notifiers */
-  volatile       	guint	 in_inotify : 1;
-  volatile       	guint	 floating : 1;
+  guint meta_marshal_nouse : 1;  /* (atomic) */
+  guint n_guards : 1;  /* (atomic) */
+  guint n_fnotifiers : 2;  /* finalization notifiers (atomic) */
+  guint n_inotifiers : 8;  /* invalidation notifiers (atomic) */
+  guint in_inotify : 1;  /* (atomic) */
+  guint floating : 1;  /* (atomic) */
   /*< protected >*/
-  volatile         	guint	 derivative_flag : 1;
+  guint derivative_flag : 1;  /* (atomic) */
   /*< public >*/
-  volatile       	guint	 in_marshal : 1;
-  volatile       	guint	 is_invalid : 1;
+  guint in_marshal : 1;  /* (atomic) */
+  guint is_invalid : 1;  /* (atomic) */
 
   /*< private >*/	void   (*marshal)  (GClosure       *closure,
 					    GValue /*out*/ *return_value,
@@ -20678,7 +22561,7 @@ struct _GClosure
 
   /* invariants/constraints:
    * - ->marshal and ->data are _invalid_ as soon as ->is_invalid==TRUE
-   * - invocation of all inotifiers occours prior to fnotifiers
+   * - invocation of all inotifiers occurs prior to fnotifiers
    * - order of inotifiers is random
    *   inotifiers may _not_ free/invalidate parameter values (e.g. ->data)
    * - order of fnotifiers is random
@@ -21342,7 +23225,10 @@ typedef gboolean (*GSignalAccumulator)	(GSignalInvocationHint *ihint,
  * @G_SIGNAL_DEPRECATED: The signal is deprecated and will be removed
  *   in a future version. A warning will be generated if it is connected while
  *   running with G_ENABLE_DIAGNOSTIC=1.  Since 2.32.
- * 
+ * @G_SIGNAL_ACCUMULATOR_FIRST_RUN: Only used in #GSignalAccumulator accumulator
+ *   functions for the #GSignalInvocationHint::run_type field to mark the first
+ *   call to the accumulator function for a signal emission.  Since 2.68.
+ *
  * The signal flags are used to specify a signal's behaviour, the overall
  * signal description outlines how especially the RUN flags control the
  * stages of a signal emission.
@@ -21357,7 +23243,9 @@ typedef enum
   G_SIGNAL_ACTION	= 1 << 5,
   G_SIGNAL_NO_HOOKS	= 1 << 6,
   G_SIGNAL_MUST_COLLECT = 1 << 7,
-  G_SIGNAL_DEPRECATED   = 1 << 8
+  G_SIGNAL_DEPRECATED   = 1 << 8,
+  /* normal signal flags until 1 << 16 */
+  G_SIGNAL_ACCUMULATOR_FIRST_RUN    = 1 << 17,
 } GSignalFlags;
 /**
  * G_SIGNAL_FLAGS_MASK:
@@ -21383,11 +23271,11 @@ typedef enum
 /**
  * GSignalMatchType:
  * @G_SIGNAL_MATCH_ID: The signal id must be equal.
- * @G_SIGNAL_MATCH_DETAIL: The signal detail be equal.
+ * @G_SIGNAL_MATCH_DETAIL: The signal detail must be equal.
  * @G_SIGNAL_MATCH_CLOSURE: The closure must be the same.
  * @G_SIGNAL_MATCH_FUNC: The C closure callback must be the same.
  * @G_SIGNAL_MATCH_DATA: The closure data must be the same.
- * @G_SIGNAL_MATCH_UNBLOCKED: Only unblocked signals may matched.
+ * @G_SIGNAL_MATCH_UNBLOCKED: Only unblocked signals may be matched.
  * 
  * The match types specify what g_signal_handlers_block_matched(),
  * g_signal_handlers_unblock_matched() and g_signal_handlers_disconnect_matched()
@@ -21438,7 +23326,9 @@ typedef enum
  * @detail: The detail passed on for this emission
  * @run_type: The stage the signal emission is currently in, this
  *  field will contain one of %G_SIGNAL_RUN_FIRST,
- *  %G_SIGNAL_RUN_LAST or %G_SIGNAL_RUN_CLEANUP.
+ *  %G_SIGNAL_RUN_LAST or %G_SIGNAL_RUN_CLEANUP and %G_SIGNAL_ACCUMULATOR_FIRST_RUN.
+ *  %G_SIGNAL_ACCUMULATOR_FIRST_RUN is only set for the first run of the accumulator
+ *  function for a signal emission.
  * 
  * The #GSignalInvocationHint structure is used to pass on additional information
  * to callbacks during a signal emission.
@@ -21561,6 +23451,8 @@ void                  g_signal_query        (guint               signal_id,
 GLIB_AVAILABLE_IN_ALL
 guint*                g_signal_list_ids     (GType               itype,
 					     guint              *n_ids);
+GLIB_AVAILABLE_IN_2_66
+gboolean              g_signal_is_valid_name (const gchar      *name);
 GLIB_AVAILABLE_IN_ALL
 gboolean	      g_signal_parse_name   (const gchar	*detailed_signal,
 					     GType		 itype,
@@ -21659,6 +23551,22 @@ guint	 g_signal_handlers_disconnect_matched (gpointer		  instance,
 					       gpointer		  func,
 					       gpointer		  data);
 
+GLIB_AVAILABLE_IN_2_62
+void	 g_clear_signal_handler		      (gulong            *handler_id_ptr,
+					       gpointer           instance);
+
+#define  g_clear_signal_handler(handler_id_ptr, instance)           \
+  G_STMT_START {                                                    \
+    G_STATIC_ASSERT (sizeof *(handler_id_ptr) == sizeof (gulong));  \
+    gulong _handler_id = *(handler_id_ptr);                         \
+                                                                    \
+    if (_handler_id > 0)                                            \
+      {                                                             \
+        g_signal_handler_disconnect ((instance), _handler_id);      \
+        *(handler_id_ptr) = 0;                                      \
+      }                                                             \
+  } G_STMT_END                                                      \
+  GLIB_AVAILABLE_MACRO_IN_2_62
 
 /* --- overriding and chaining --- */
 GLIB_AVAILABLE_IN_ALL
@@ -22151,6 +24059,24 @@ typedef gsize GType;
  */
 #define G_TYPE_OPTION_GROUP (g_option_group_get_type ())
 
+/**
+ * G_TYPE_URI:
+ *
+ * The #GType for a boxed type holding a #GUri.
+ *
+ * Since: 2.66
+ */
+#define G_TYPE_URI (g_uri_get_type ())
+
+/**
+ * G_TYPE_TREE:
+ *
+ * The #GType for #GTree.
+ *
+ * Since: 2.68
+ */
+#define G_TYPE_TREE (g_tree_get_type ())
+
 GLIB_AVAILABLE_IN_ALL
 GType   g_date_get_type            (void) G_GNUC_CONST;
 GLIB_AVAILABLE_IN_ALL
@@ -22207,6 +24133,10 @@ GLIB_AVAILABLE_IN_2_40
 GType   g_mapped_file_get_type (void) G_GNUC_CONST;
 GLIB_AVAILABLE_IN_2_44
 GType   g_option_group_get_type    (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_66
+GType   g_uri_get_type             (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_68
+GType   g_tree_get_type            (void) G_GNUC_CONST;
 
 GLIB_DEPRECATED_FOR('G_TYPE_VARIANT')
 GType   g_variant_get_gtype        (void) G_GNUC_CONST;
@@ -22509,11 +24439,11 @@ typedef void (*GObjectFinalizeFunc)     (GObject      *object);
 /**
  * GWeakNotify:
  * @data: data that was provided when the weak reference was established
- * @where_the_object_was: the object being finalized
+ * @where_the_object_was: the object being disposed
  * 
  * A #GWeakNotify function can be added to an object as a callback that gets
  * triggered when the object is finalized. Since the object is already being
- * finalized when the #GWeakNotify is called, there's not much you could do 
+ * disposed when the #GWeakNotify is called, there's not much you could do 
  * with the object, apart from e.g. using its address as hash-index or the like. 
  */
 typedef void (*GWeakNotify)		(gpointer      data,
@@ -22529,7 +24459,7 @@ struct  _GObject
   GTypeInstance  g_type_instance;
   
   /*< private >*/
-  volatile guint ref_count;
+  guint          ref_count;  /* (atomic) */
   GData         *qdata;
 };
 /**
@@ -22602,7 +24532,7 @@ struct  _GObjectClass
   GSList      *construct_properties;
 
   /*< public >*/
-  /* seldom overidden */
+  /* seldom overridden */
   GObject*   (*constructor)     (GType                  type,
                                  guint                  n_construct_properties,
                                  GObjectConstructParam *construct_properties);
@@ -22617,7 +24547,7 @@ struct  _GObjectClass
                                          GParamSpec     *pspec);
   void       (*dispose)			(GObject        *object);
   void       (*finalize)		(GObject        *object);
-  /* seldom overidden */
+  /* seldom overridden */
   void       (*dispatch_properties_changed) (GObject      *object,
 					     guint	   n_pspecs,
 					     GParamSpec  **pspecs);
@@ -22706,10 +24636,16 @@ GObject*    g_object_new_with_properties      (GType           object_type,
                                                guint           n_properties,
                                                const char     *names[],
                                                const GValue    values[]);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
 GLIB_DEPRECATED_IN_2_54_FOR(g_object_new_with_properties)
 gpointer    g_object_newv		      (GType           object_type,
 					       guint	       n_parameters,
 					       GParameter     *parameters);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 GObject*    g_object_new_valist               (GType           object_type,
 					       const gchar    *first_property_name,
@@ -22789,10 +24725,10 @@ GLIB_AVAILABLE_IN_ALL
 void        g_object_remove_weak_pointer      (GObject        *object, 
                                                gpointer       *weak_pointer_location);
 
-#if defined(g_has_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_56
+#if defined(glib_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_56
 /* Make reference APIs type safe with macros */
-#define g_object_ref(Obj)      ((__typeof__(Obj)) (g_object_ref) (Obj))
-#define g_object_ref_sink(Obj) ((__typeof__(Obj)) (g_object_ref_sink) (Obj))
+#define g_object_ref(Obj) ((glib_typeof (Obj)) (g_object_ref) (Obj))
+#define g_object_ref_sink(Obj) ((glib_typeof (Obj)) (g_object_ref_sink) (Obj))
 #endif
 
 /**
@@ -22955,16 +24891,16 @@ void    g_clear_object (GObject **object_ptr);
 
 /**
  * g_set_object: (skip)
- * @object_ptr: a pointer to a #GObject reference
+ * @object_ptr: (inout) (not optional) (nullable): a pointer to a #GObject reference
  * @new_object: (nullable) (transfer none): a pointer to the new #GObject to
- *   assign to it, or %NULL to clear the pointer
+ *   assign to @object_ptr, or %NULL to clear the pointer
  *
  * Updates a #GObject pointer to refer to @new_object. It increments the
  * reference count of @new_object (if non-%NULL), decrements the reference
  * count of the current value of @object_ptr (if non-%NULL), and assigns
  * @new_object to @object_ptr. The assignment is not atomic.
  *
- * @object_ptr must not be %NULL.
+ * @object_ptr must not be %NULL, but can point to a %NULL value.
  *
  * A macro is also included that allows this function to be used without
  * pointer casts. The function itself is static inline, so its address may vary
@@ -23014,11 +24950,62 @@ static inline gboolean
   return TRUE;
 }
 
+/* We need GCC for __extension__, which we need to sort out strict aliasing of @object_ptr */
+#if defined(__GNUC__)
+
+#define g_set_object(object_ptr, new_object) \
+  (G_GNUC_EXTENSION ({ \
+    G_STATIC_ASSERT (sizeof *(object_ptr) == sizeof (new_object)); \
+    /* Only one access, please; work around type aliasing */ \
+    union { char *in; GObject **out; } _object_ptr; \
+    _object_ptr.in = (char *) (object_ptr); \
+    /* Check types match */ \
+    (void) (0 ? *(object_ptr) = (new_object), FALSE : FALSE); \
+    (g_set_object) (_object_ptr.out, (GObject *) new_object); \
+  })) \
+  GLIB_AVAILABLE_MACRO_IN_2_44
+
+#else  /* if !defined(__GNUC__) */
+
 #define g_set_object(object_ptr, new_object) \
  (/* Check types match. */ \
   0 ? *(object_ptr) = (new_object), FALSE : \
   (g_set_object) ((GObject **) (object_ptr), (GObject *) (new_object)) \
  )
+
+#endif  /* !defined(__GNUC__) */
+
+/**
+ * g_assert_finalize_object: (skip)
+ * @object: (transfer full) (type GObject.Object): an object
+ *
+ * Assert that @object is non-%NULL, then release one reference to it with
+ * g_object_unref() and assert that it has been finalized (i.e. that there
+ * are no more references).
+ *
+ * If assertions are disabled via `G_DISABLE_ASSERT`,
+ * this macro just calls g_object_unref() without any further checks.
+ *
+ * This macro should only be used in regression tests.
+ *
+ * Since: 2.62
+ */
+static inline void
+(g_assert_finalize_object) (GObject *object)
+{
+  gpointer weak_pointer = object;
+
+  g_assert_true (G_IS_OBJECT (weak_pointer));
+  g_object_add_weak_pointer (object, &weak_pointer);
+  g_object_unref (weak_pointer);
+  g_assert_null (weak_pointer);
+}
+
+#ifdef G_DISABLE_ASSERT
+#define g_assert_finalize_object(object) g_object_unref (object)
+#else
+#define g_assert_finalize_object(object) (g_assert_finalize_object ((GObject *) object))
+#endif
 
 /**
  * g_clear_weak_pointer: (skip)
@@ -23063,7 +25050,7 @@ static inline void
  *
  * Updates a pointer to weakly refer to @new_object. It assigns @new_object
  * to @weak_pointer_location and ensures that @weak_pointer_location will
- * automaticaly be set to %NULL if @new_object gets destroyed. The assignment
+ * automatically be set to %NULL if @new_object gets destroyed. The assignment
  * is not atomic. The weak reference is not thread-safe, see
  * g_object_add_weak_pointer() for details.
  *
@@ -23222,10 +25209,14 @@ GType                 g_binding_get_type            (void) G_GNUC_CONST;
 
 GLIB_AVAILABLE_IN_ALL
 GBindingFlags         g_binding_get_flags           (GBinding *binding);
-GLIB_AVAILABLE_IN_ALL
+GLIB_DEPRECATED_IN_2_68_FOR(g_binding_dup_source)
 GObject *             g_binding_get_source          (GBinding *binding);
-GLIB_AVAILABLE_IN_ALL
+GLIB_AVAILABLE_IN_2_68
+GObject *             g_binding_dup_source          (GBinding *binding);
+GLIB_DEPRECATED_IN_2_68_FOR(g_binding_dup_target)
 GObject *             g_binding_get_target          (GBinding *binding);
+GLIB_AVAILABLE_IN_2_68
+GObject *             g_binding_dup_target          (GBinding *binding);
 GLIB_AVAILABLE_IN_ALL
 const gchar *         g_binding_get_source_property (GBinding *binding);
 GLIB_AVAILABLE_IN_ALL
@@ -23539,6 +25530,30 @@ void	g_flags_complete_type_info (GType	       g_flags_type,
 G_END_DECLS
 
 #endif /* __G_ENUMS_H__ */
+
+/* This file is generated by glib-mkenums, do not modify it. This code is licensed under the same license as the containing project. Note that it links to GLib, so must comply with the LGPL linking clauses. */
+
+#ifndef __GOBJECT_ENUM_TYPES_H__
+#define __GOBJECT_ENUM_TYPES_H__
+
+
+G_BEGIN_DECLS
+
+/* enumerations from "../../../deps/glib/gobject/../glib/gunicode.h" */
+GLIB_AVAILABLE_IN_2_60 GType g_unicode_type_get_type (void) G_GNUC_CONST;
+#define G_TYPE_UNICODE_TYPE (g_unicode_type_get_type ())
+GLIB_AVAILABLE_IN_2_60 GType g_unicode_break_type_get_type (void) G_GNUC_CONST;
+#define G_TYPE_UNICODE_BREAK_TYPE (g_unicode_break_type_get_type ())
+GLIB_AVAILABLE_IN_2_60 GType g_unicode_script_get_type (void) G_GNUC_CONST;
+#define G_TYPE_UNICODE_SCRIPT (g_unicode_script_get_type ())
+GLIB_AVAILABLE_IN_2_60 GType g_normalize_mode_get_type (void) G_GNUC_CONST;
+#define G_TYPE_NORMALIZE_MODE (g_normalize_mode_get_type ())
+G_END_DECLS
+
+#endif /* __GOBJECT_ENUM_TYPES_H__ */
+
+/* Generated data ends here */
+
 /* GObject - GLib Type, Object, Parameter and Signal Library
  * Copyright (C) 1997-1999, 2000-2001 Tim Janik and Red Hat, Inc.
  *
@@ -23989,7 +26004,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.32: Use #GArray instead of #GValueArray
  */
-#define	G_TYPE_PARAM_VALUE_ARRAY	   (g_param_spec_types[18])
+#define	G_TYPE_PARAM_VALUE_ARRAY	   (g_param_spec_types[18]) GLIB_DEPRECATED_MACRO_IN_2_32
 /**
  * G_IS_PARAM_SPEC_VALUE_ARRAY:
  * @pspec: a valid #GParamSpec instance
@@ -24000,7 +26015,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.32: Use #GArray instead of #GValueArray
  */
-#define G_IS_PARAM_SPEC_VALUE_ARRAY(pspec) (G_TYPE_CHECK_INSTANCE_TYPE ((pspec), G_TYPE_PARAM_VALUE_ARRAY))
+#define G_IS_PARAM_SPEC_VALUE_ARRAY(pspec) (G_TYPE_CHECK_INSTANCE_TYPE ((pspec), G_TYPE_PARAM_VALUE_ARRAY)) GLIB_DEPRECATED_MACRO_IN_2_32
 /**
  * G_PARAM_SPEC_VALUE_ARRAY:
  * @pspec: a valid #GParamSpec instance
@@ -24009,7 +26024,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.32: Use #GArray instead of #GValueArray
  */
-#define G_PARAM_SPEC_VALUE_ARRAY(pspec)    (G_TYPE_CHECK_INSTANCE_CAST ((pspec), G_TYPE_PARAM_VALUE_ARRAY, GParamSpecValueArray))
+#define G_PARAM_SPEC_VALUE_ARRAY(pspec)    (G_TYPE_CHECK_INSTANCE_CAST ((pspec), G_TYPE_PARAM_VALUE_ARRAY, GParamSpecValueArray)) GLIB_DEPRECATED_MACRO_IN_2_32
 
 /**
  * G_TYPE_PARAM_OBJECT:
@@ -24464,7 +26479,7 @@ struct _GParamSpecObject
  * another paramspec.  All operations other than getting or
  * setting the value are redirected, including accessing the nick and
  * blurb, validating a value, and so forth. See
- * g_param_spec_get_redirect_target() for retrieving the overidden
+ * g_param_spec_get_redirect_target() for retrieving the overridden
  * property. #GParamSpecOverride is used in implementing
  * g_object_class_override_property(), and will not be directly useful
  * unless you are implementing a new base type similar to GObject.
@@ -24687,7 +26702,7 @@ GParamSpec*	g_param_spec_variant	 (const gchar        *name,
 #    else /* !GOBJECT_STATIC_COMPILATION */
 #      ifdef GOBJECT_COMPILATION
 #        ifdef DLL_EXPORT
-#          define GOBJECT_VAR __declspec(dllexport)
+#          define GOBJECT_VAR extern __declspec(dllexport)
 #        else /* !DLL_EXPORT */
 #          define GOBJECT_VAR extern
 #        endif /* !DLL_EXPORT */
@@ -25102,7 +27117,7 @@ typedef void  (*GTypePluginCompleteTypeInfo)	  (GTypePlugin     *plugin,
 /**
  * GTypePluginCompleteInterfaceInfo:
  * @plugin: the #GTypePlugin
- * @instance_type: the #GType of an instantiable type to which the interface
+ * @instance_type: the #GType of an instantiatable type to which the interface
  *  is added
  * @interface_type: the #GType of the interface whose info is completed
  * @info: the #GInterfaceInfo to fill in
@@ -25203,7 +27218,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.32: Use #GArray instead of #GValueArray
  */
-#define G_TYPE_VALUE_ARRAY (g_value_array_get_type ())
+#define G_TYPE_VALUE_ARRAY (g_value_array_get_type ()) GLIB_DEPRECATED_MACRO_IN_2_32_FOR(G_TYPE_ARRAY)
 
 /* --- typedefs & structs --- */
 typedef struct _GValueArray GValueArray;
@@ -25408,6 +27423,19 @@ G_BEGIN_DECLS
  */
 #define G_VALUE_HOLDS_STRING(value)	 (G_TYPE_CHECK_VALUE_TYPE ((value), G_TYPE_STRING))
 /**
+ * G_VALUE_IS_INTERNED_STRING:
+ * @value: a valid #GValue structure
+ *
+ * Checks whether @value contains a string which is canonical.
+ *
+ * Returns: %TRUE if the value contains a string in its canonical
+ * representation, as returned by g_intern_string(). See also
+ * g_value_set_interned_string().
+ *
+ * Since: 2.66
+ */
+#define G_VALUE_IS_INTERNED_STRING(value) (G_VALUE_HOLDS_STRING (value) && ((value)->data[1].v_uint & G_VALUE_INTERNED_STRING)) GLIB_AVAILABLE_MACRO_IN_2_66
+/**
  * G_VALUE_HOLDS_POINTER:
  * @value: a valid #GValue structure
  * 
@@ -25512,6 +27540,9 @@ void		      g_value_set_string	(GValue	      *value,
 GLIB_AVAILABLE_IN_ALL
 void		      g_value_set_static_string (GValue	      *value,
 						 const gchar  *v_string);
+GLIB_AVAILABLE_IN_2_66
+void		      g_value_set_interned_string (GValue      *value,
+						   const gchar  *v_string);
 GLIB_AVAILABLE_IN_ALL
 const gchar *         g_value_get_string	(const GValue *value);
 GLIB_AVAILABLE_IN_ALL
@@ -25570,30 +27601,6 @@ G_END_DECLS
 
 #endif /* __G_VALUETYPES_H__ */
 
-/* This file is generated by glib-mkenums, do not modify it. This code is licensed under the same license as the containing project. Note that it links to GLib, so must comply with the LGPL linking clauses. */
-
-#ifndef __GOBJECT_ENUM_TYPES_H__
-#define __GOBJECT_ENUM_TYPES_H__
-
-
-G_BEGIN_DECLS
-
-/* enumerations from "../../../../glib/gobject/../glib/gunicode.h" */
-GLIB_AVAILABLE_IN_2_60 GType g_unicode_type_get_type (void) G_GNUC_CONST;
-#define G_TYPE_UNICODE_TYPE (g_unicode_type_get_type ())
-GLIB_AVAILABLE_IN_2_60 GType g_unicode_break_type_get_type (void) G_GNUC_CONST;
-#define G_TYPE_UNICODE_BREAK_TYPE (g_unicode_break_type_get_type ())
-GLIB_AVAILABLE_IN_2_60 GType g_unicode_script_get_type (void) G_GNUC_CONST;
-#define G_TYPE_UNICODE_SCRIPT (g_unicode_script_get_type ())
-GLIB_AVAILABLE_IN_2_60 GType g_normalize_mode_get_type (void) G_GNUC_CONST;
-#define G_TYPE_NORMALIZE_MODE (g_normalize_mode_get_type ())
-G_END_DECLS
-
-#endif /* __GOBJECT_ENUM_TYPES_H__ */
-
-/* Generated data ends here */
-
-
 /*
  * Copyright © 2015 Canonical Limited
  *
@@ -25628,7 +27635,7 @@ G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(GValue, g_value_unset)
 
 #undef __GLIB_GOBJECT_H_INSIDE__
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gobject_init                            (void);
 
 #endif /* __GLIB_GOBJECT_H__ */
@@ -25802,7 +27809,7 @@ typedef enum {
 
 /**
  * GFileAttributeType:
- * @G_FILE_ATTRIBUTE_TYPE_INVALID: indicates an invalid or uninitalized type.
+ * @G_FILE_ATTRIBUTE_TYPE_INVALID: indicates an invalid or uninitialized type.
  * @G_FILE_ATTRIBUTE_TYPE_STRING: a null terminated UTF8 string.
  * @G_FILE_ATTRIBUTE_TYPE_BYTE_STRING: a zero terminated string of non-zero bytes.
  * @G_FILE_ATTRIBUTE_TYPE_BOOLEAN: a boolean value.
@@ -25884,7 +27891,9 @@ typedef enum {
  *    rather than a "save new version of" replace operation.
  *    You can think of it as "unlink destination" before
  *    writing to it, although the implementation may not
- *    be exactly like that. Since 2.20
+ *    be exactly like that. This flag can only be used with
+ *    g_file_replace() and its variants, including g_file_replace_contents().
+ *    Since 2.20
  *
  * Flags used when an operation may create a file.
  */
@@ -26400,11 +28409,11 @@ typedef enum {
 
 /**
  * GResolverRecordType:
- * @G_RESOLVER_RECORD_SRV: lookup DNS SRV records for a domain
- * @G_RESOLVER_RECORD_MX: lookup DNS MX records for a domain
- * @G_RESOLVER_RECORD_TXT: lookup DNS TXT records for a name
- * @G_RESOLVER_RECORD_SOA: lookup DNS SOA records for a zone
- * @G_RESOLVER_RECORD_NS: lookup DNS NS records for a domain
+ * @G_RESOLVER_RECORD_SRV: look up DNS SRV records for a domain
+ * @G_RESOLVER_RECORD_MX: look up DNS MX records for a domain
+ * @G_RESOLVER_RECORD_TXT: look up DNS TXT records for a name
+ * @G_RESOLVER_RECORD_SOA: look up DNS SOA records for a zone
+ * @G_RESOLVER_RECORD_NS: look up DNS NS records for a domain
  *
  * The type of record that g_resolver_lookup_records() or
  * g_resolver_lookup_records_async() should retrieve. The records are returned
@@ -26412,24 +28421,30 @@ typedef enum {
  * the variant tuples returned.
  *
  * %G_RESOLVER_RECORD_SRV records are returned as variants with the signature
- * '(qqqs)', containing a guint16 with the priority, a guint16 with the
- * weight, a guint16 with the port, and a string of the hostname.
+ * `(qqqs)`, containing a `guint16` with the priority, a `guint16` with the
+ * weight, a `guint16` with the port, and a string of the hostname.
  *
  * %G_RESOLVER_RECORD_MX records are returned as variants with the signature
- * '(qs)', representing a guint16 with the preference, and a string containing
+ * `(qs)`, representing a `guint16` with the preference, and a string containing
  * the mail exchanger hostname.
  *
  * %G_RESOLVER_RECORD_TXT records are returned as variants with the signature
- * '(as)', representing an array of the strings in the text record.
+ * `(as)`, representing an array of the strings in the text record. Note: Most TXT
+ * records only contain a single string, but
+ * [RFC 1035](https://tools.ietf.org/html/rfc1035#section-3.3.14) does allow a
+ * record to contain multiple strings. The RFC which defines the interpretation
+ * of a specific TXT record will likely require concatenation of multiple
+ * strings if they are present, as with
+ * [RFC 7208](https://tools.ietf.org/html/rfc7208#section-3.3).
  *
  * %G_RESOLVER_RECORD_SOA records are returned as variants with the signature
- * '(ssuuuuu)', representing a string containing the primary name server, a
- * string containing the administrator, the serial as a guint32, the refresh
- * interval as guint32, the retry interval as a guint32, the expire timeout
- * as a guint32, and the ttl as a guint32.
+ * `(ssuuuuu)`, representing a string containing the primary name server, a
+ * string containing the administrator, the serial as a `guint32`, the refresh
+ * interval as a `guint32`, the retry interval as a `guint32`, the expire timeout
+ * as a `guint32`, and the TTL as a `guint32`.
  *
  * %G_RESOLVER_RECORD_NS records are returned as variants with the signature
- * '(s)', representing a string of the hostname of the name server.
+ * `(s)`, representing a string of the hostname of the name server.
  *
  * Since: 2.34
  */
@@ -27102,11 +29117,12 @@ typedef enum
 /**
  * GCredentialsType:
  * @G_CREDENTIALS_TYPE_INVALID: Indicates an invalid native credential type.
- * @G_CREDENTIALS_TYPE_LINUX_UCRED: The native credentials type is a struct ucred.
- * @G_CREDENTIALS_TYPE_FREEBSD_CMSGCRED: The native credentials type is a struct cmsgcred.
- * @G_CREDENTIALS_TYPE_OPENBSD_SOCKPEERCRED: The native credentials type is a struct sockpeercred. Added in 2.30.
- * @G_CREDENTIALS_TYPE_SOLARIS_UCRED: The native credentials type is a ucred_t. Added in 2.40.
- * @G_CREDENTIALS_TYPE_NETBSD_UNPCBID: The native credentials type is a struct unpcbid.
+ * @G_CREDENTIALS_TYPE_LINUX_UCRED: The native credentials type is a `struct ucred`.
+ * @G_CREDENTIALS_TYPE_FREEBSD_CMSGCRED: The native credentials type is a `struct cmsgcred`.
+ * @G_CREDENTIALS_TYPE_OPENBSD_SOCKPEERCRED: The native credentials type is a `struct sockpeercred`. Added in 2.30.
+ * @G_CREDENTIALS_TYPE_SOLARIS_UCRED: The native credentials type is a `ucred_t`. Added in 2.40.
+ * @G_CREDENTIALS_TYPE_NETBSD_UNPCBID: The native credentials type is a `struct unpcbid`. Added in 2.42.
+ * @G_CREDENTIALS_TYPE_APPLE_XUCRED: The native credentials type is a `struct xucred`. Added in 2.66.
  *
  * Enumeration describing different kinds of native credential types.
  *
@@ -27119,7 +29135,8 @@ typedef enum
   G_CREDENTIALS_TYPE_FREEBSD_CMSGCRED,
   G_CREDENTIALS_TYPE_OPENBSD_SOCKPEERCRED,
   G_CREDENTIALS_TYPE_SOLARIS_UCRED,
-  G_CREDENTIALS_TYPE_NETBSD_UNPCBID
+  G_CREDENTIALS_TYPE_NETBSD_UNPCBID,
+  G_CREDENTIALS_TYPE_APPLE_XUCRED,
 } GCredentialsType;
 
 /**
@@ -27289,6 +29306,61 @@ typedef enum {
 } GTlsAuthenticationMode;
 
 /**
+ * GTlsChannelBindingType:
+ * @G_TLS_CHANNEL_BINDING_TLS_UNIQUE:
+ *    [`tls-unique`](https://tools.ietf.org/html/rfc5929#section-3) binding
+ *    type
+ * @G_TLS_CHANNEL_BINDING_TLS_SERVER_END_POINT:
+ *    [`tls-server-end-point`](https://tools.ietf.org/html/rfc5929#section-4)
+ *    binding type
+ *
+ * The type of TLS channel binding data to retrieve from #GTlsConnection
+ * or #GDtlsConnection, as documented by RFC 5929. The
+ * [`tls-unique-for-telnet`](https://tools.ietf.org/html/rfc5929#section-5)
+ * binding type is not currently implemented.
+ *
+ * Since: 2.66
+ */
+GLIB_AVAILABLE_TYPE_IN_2_66
+typedef enum {
+  G_TLS_CHANNEL_BINDING_TLS_UNIQUE,
+  G_TLS_CHANNEL_BINDING_TLS_SERVER_END_POINT
+} GTlsChannelBindingType;
+
+/**
+ * GTlsChannelBindingError:
+ * @G_TLS_CHANNEL_BINDING_ERROR_NOT_IMPLEMENTED: Either entire binding
+ *    retrieval facility or specific binding type is not implemented in the
+ *    TLS backend.
+ * @G_TLS_CHANNEL_BINDING_ERROR_INVALID_STATE: The handshake is not yet
+ *    complete on the connection which is a strong requirement for any existing
+ *    binding type.
+ * @G_TLS_CHANNEL_BINDING_ERROR_NOT_AVAILABLE: Handshake is complete but
+ *    binding data is not available. That normally indicates the TLS
+ *    implementation failed to provide the binding data. For example, some
+ *    implementations do not provide a peer certificate for resumed connections.
+ * @G_TLS_CHANNEL_BINDING_ERROR_NOT_SUPPORTED: Binding type is not supported
+ *    on the current connection. This error could be triggered when requesting
+ *    `tls-server-end-point` binding data for a certificate which has no hash
+ *    function or uses multiple hash functions.
+ * @G_TLS_CHANNEL_BINDING_ERROR_GENERAL_ERROR: Any other backend error
+ *    preventing binding data retrieval.
+ *
+ * An error code used with %G_TLS_CHANNEL_BINDING_ERROR in a #GError to
+ * indicate a TLS channel binding retrieval error.
+ *
+ * Since: 2.66
+ */
+GLIB_AVAILABLE_TYPE_IN_2_66
+typedef enum {
+  G_TLS_CHANNEL_BINDING_ERROR_NOT_IMPLEMENTED,
+  G_TLS_CHANNEL_BINDING_ERROR_INVALID_STATE,
+  G_TLS_CHANNEL_BINDING_ERROR_NOT_AVAILABLE,
+  G_TLS_CHANNEL_BINDING_ERROR_NOT_SUPPORTED,
+  G_TLS_CHANNEL_BINDING_ERROR_GENERAL_ERROR
+} GTlsChannelBindingError;
+
+/**
  * GTlsRehandshakeMode:
  * @G_TLS_REHANDSHAKE_NEVER: Never allow rehandshaking
  * @G_TLS_REHANDSHAKE_SAFELY: Allow safe rehandshaking only
@@ -27307,7 +29379,7 @@ typedef enum {
   G_TLS_REHANDSHAKE_NEVER,
   G_TLS_REHANDSHAKE_SAFELY,
   G_TLS_REHANDSHAKE_UNSAFELY
-} GTlsRehandshakeMode;
+} GTlsRehandshakeMode GLIB_DEPRECATED_TYPE_IN_2_60;
 
 /**
  * GTlsPasswordFlags:
@@ -27643,6 +29715,35 @@ typedef enum {
   G_POLLABLE_RETURN_WOULD_BLOCK  = -G_IO_ERROR_WOULD_BLOCK
 } GPollableReturn;
 
+/**
+ * GMemoryMonitorWarningLevel:
+ * @G_MEMORY_MONITOR_WARNING_LEVEL_LOW: Memory on the device is low, processes
+ *   should free up unneeded resources (for example, in-memory caches) so they can
+ *   be used elsewhere.
+ * @G_MEMORY_MONITOR_WARNING_LEVEL_MEDIUM: Same as @G_MEMORY_MONITOR_WARNING_LEVEL_LOW
+ *   but the device has even less free memory, so processes should try harder to free
+ *   up unneeded resources. If your process does not need to stay running, it is a
+ *   good time for it to quit.
+ * @G_MEMORY_MONITOR_WARNING_LEVEL_CRITICAL: The system will soon start terminating
+ *   processes to reclaim memory, including background processes.
+ *
+ * Memory availability warning levels.
+ *
+ * Note that because new values might be added, it is recommended that applications check
+ * #GMemoryMonitorWarningLevel as ranges, for example:
+ * |[<!-- language="C" -->
+ * if (warning_level > G_MEMORY_MONITOR_WARNING_LEVEL_LOW)
+ *   drop_caches ();
+ * ]|
+ *
+ * Since: 2.64
+ */
+typedef enum {
+  G_MEMORY_MONITOR_WARNING_LEVEL_LOW      = 50,
+  G_MEMORY_MONITOR_WARNING_LEVEL_MEDIUM   = 100,
+  G_MEMORY_MONITOR_WARNING_LEVEL_CRITICAL = 255
+} GMemoryMonitorWarningLevel;
+
 G_END_DECLS
 
 #endif /* __GIO_ENUMS_H__ */
@@ -27814,7 +29915,7 @@ typedef struct _GSocketListener                             GSocketListener;
 /**
  * GSocketService:
  *
- * A helper class for handling accepting incomming connections in the
+ * A helper class for handling accepting incoming connections in the
  * glib mainloop.
  *
  * Since: 2.22
@@ -29495,12 +31596,17 @@ gpointer g_initable_new        (GType          object_type,
 				const gchar   *first_property_name,
 				...);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
 GLIB_DEPRECATED_IN_2_54_FOR(g_object_new_with_properties and g_initable_init)
 gpointer g_initable_newv       (GType          object_type,
 				guint          n_parameters,
 				GParameter    *parameters,
 				GCancellable  *cancellable,
 				GError       **error);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 GObject* g_initable_new_valist (GType          object_type,
 				const gchar   *first_property_name,
@@ -29580,6 +31686,9 @@ void     g_async_initable_new_async        (GType                 object_type,
 					    gpointer              user_data,
 					    const gchar          *first_property_name,
 					    ...);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
 GLIB_DEPRECATED_IN_2_54_FOR(g_object_new_with_properties and g_async_initable_init_async)
 void     g_async_initable_newv_async       (GType                 object_type,
 					    guint                 n_parameters,
@@ -29588,6 +31697,9 @@ void     g_async_initable_newv_async       (GType                 object_type,
 					    GCancellable         *cancellable,
 					    GAsyncReadyCallback   callback,
 					    gpointer              user_data);
+
+G_GNUC_END_IGNORE_DEPRECATIONS
+
 GLIB_AVAILABLE_IN_ALL
 void     g_async_initable_new_valist_async (GType                 object_type,
 					    const gchar          *first_property_name,
@@ -29646,7 +31758,7 @@ G_BEGIN_DECLS
  * GAsyncResult:
  *
  * Holds results information for an asynchronous operation,
- * usually passed directly to a asynchronous _finish() operation.
+ * usually passed directly to an asynchronous _finish() operation.
  **/
 typedef struct _GAsyncResultIface    GAsyncResultIface;
 
@@ -31004,10 +33116,12 @@ GLIB_AVAILABLE_IN_ALL
 GList *  g_content_types_get_registered   (void);
 
 /*< private >*/
+#ifndef __GTK_DOC_IGNORE__
 GLIB_AVAILABLE_IN_2_60
 const gchar * const *g_content_type_get_mime_dirs (void);
 GLIB_AVAILABLE_IN_2_60
 void                 g_content_type_set_mime_dirs (const gchar * const *dirs);
+#endif /* __GTK_DOC_IGNORE__ */
 
 G_END_DECLS
 
@@ -31698,6 +33812,59 @@ gboolean             g_data_output_stream_put_string     (GDataOutputStream     
 G_END_DECLS
 
 #endif /* __G_DATA_OUTPUT_STREAM_H__ */
+/*
+ * Copyright © 2010 Codethink Limited
+ * Copyright © 2011 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_DBUS_ACTION_GROUP_H__
+#define __G_DBUS_ACTION_GROUP_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_ACTION_GROUP                            (g_dbus_action_group_get_type ())
+#define G_DBUS_ACTION_GROUP(inst)                           (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroup))
+#define G_DBUS_ACTION_GROUP_CLASS(class)                    (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
+#define G_IS_DBUS_ACTION_GROUP(inst)                        (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_DBUS_ACTION_GROUP))
+#define G_IS_DBUS_ACTION_GROUP_CLASS(class)                 (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_DBUS_ACTION_GROUP))
+#define G_DBUS_ACTION_GROUP_GET_CLASS(inst)                 (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_dbus_action_group_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+GDBusActionGroup *      g_dbus_action_group_get                       (GDBusConnection        *connection,
+                                                                       const gchar            *bus_name,
+                                                                       const gchar            *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_ACTION_GROUP_H__ */
 /* GDBus - GLib D-Bus Library
  *
  * Copyright (C) 2008-2010 Red Hat, Inc.
@@ -32245,11 +34412,11 @@ gboolean         g_dbus_connection_unregister_object          (GDBusConnection  
  * specified (ie: to verify that the object path is valid).
  *
  * Hierarchies are not supported; the items that you return should not
- * contain the '/' character.
+ * contain the `/` character.
  *
  * The return value will be freed with g_strfreev().
  *
- * Returns: A newly allocated array of strings for node names that are children of @object_path.
+ * Returns: (array zero-terminated=1) (transfer full): A newly allocated array of strings for node names that are children of @object_path.
  *
  * Since: 2.26
  */
@@ -32285,7 +34452,7 @@ typedef gchar** (*GDBusSubtreeEnumerateFunc) (GDBusConnection       *connection,
  * remote introspector in the empty array case, but not in the %NULL
  * case.
  *
- * Returns: A %NULL-terminated array of pointers to #GDBusInterfaceInfo, or %NULL.
+ * Returns: (array zero-terminated=1) (nullable) (transfer full): A %NULL-terminated array of pointers to #GDBusInterfaceInfo, or %NULL.
  *
  * Since: 2.26
  */
@@ -32302,7 +34469,7 @@ typedef GDBusInterfaceInfo ** (*GDBusSubtreeIntrospectFunc) (GDBusConnection    
  * @object_path: The object path that was registered with g_dbus_connection_register_subtree().
  * @interface_name: The D-Bus interface name that the method call or property access is for.
  * @node: A node that is a child of @object_path (relative to @object_path) or %NULL for the root of the subtree.
- * @out_user_data: (nullable) (not optional): Return location for user data to pass to functions in the returned #GDBusInterfaceVTable (never %NULL).
+ * @out_user_data: (nullable) (not optional): Return location for user data to pass to functions in the returned #GDBusInterfaceVTable.
  * @user_data: The @user_data #gpointer passed to g_dbus_connection_register_subtree().
  *
  * The type of the @dispatch function in #GDBusSubtreeVTable.
@@ -32310,7 +34477,7 @@ typedef GDBusInterfaceInfo ** (*GDBusSubtreeIntrospectFunc) (GDBusConnection    
  * Subtrees are flat.  @node, if non-%NULL, is always exactly one
  * segment of the object path (ie: it never contains a slash).
  *
- * Returns: A #GDBusInterfaceVTable or %NULL if you don't want to handle the methods.
+ * Returns: (nullable): A #GDBusInterfaceVTable or %NULL if you don't want to handle the methods.
  *
  * Since: 2.26
  */
@@ -32363,7 +34530,8 @@ gboolean         g_dbus_connection_unregister_subtree         (GDBusConnection  
 /**
  * GDBusSignalCallback:
  * @connection: A #GDBusConnection.
- * @sender_name: The unique bus name of the sender of the signal.
+ * @sender_name: (nullable): The unique bus name of the sender of the signal,
+   or %NULL on a peer-to-peer D-Bus connection.
  * @object_path: The object path that the signal was emitted on.
  * @interface_name: The name of the interface.
  * @signal_name: The name of the signal.
@@ -32622,6 +34790,212 @@ G_END_DECLS
  * Author: David Zeuthen <davidz@redhat.com>
  */
 
+#ifndef __G_DBUS_INTERFACE_H__
+#define __G_DBUS_INTERFACE_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_INTERFACE         (g_dbus_interface_get_type())
+#define G_DBUS_INTERFACE(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE, GDBusInterface))
+#define G_IS_DBUS_INTERFACE(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE))
+#define G_DBUS_INTERFACE_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_INTERFACE, GDBusInterfaceIface))
+
+/**
+ * GDBusInterface:
+ *
+ * Base type for D-Bus interfaces.
+ *
+ * Since: 2.30
+ */
+
+typedef struct _GDBusInterfaceIface GDBusInterfaceIface;
+
+/**
+ * GDBusInterfaceIface:
+ * @parent_iface: The parent interface.
+ * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_get_info().
+ * @get_object: Gets the enclosing #GDBusObject. See g_dbus_interface_get_object().
+ * @set_object: Sets the enclosing #GDBusObject. See g_dbus_interface_set_object().
+ * @dup_object: Gets a reference to the enclosing #GDBusObject. See g_dbus_interface_dup_object(). Added in 2.32.
+ *
+ * Base type for D-Bus interfaces.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  GDBusInterfaceInfo   *(*get_info)   (GDBusInterface      *interface_);
+  GDBusObject          *(*get_object) (GDBusInterface      *interface_);
+  void                  (*set_object) (GDBusInterface      *interface_,
+                                       GDBusObject         *object);
+  GDBusObject          *(*dup_object) (GDBusInterface      *interface_);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_dbus_interface_get_type         (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceInfo   *g_dbus_interface_get_info         (GDBusInterface      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GDBusObject          *g_dbus_interface_get_object       (GDBusInterface      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                  g_dbus_interface_set_object       (GDBusInterface      *interface_,
+                                                         GDBusObject         *object);
+GLIB_AVAILABLE_IN_2_32
+GDBusObject          *g_dbus_interface_dup_object       (GDBusInterface      *interface_);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_INTERFACE_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_INTERFACE_SKELETON_H__
+#define __G_DBUS_INTERFACE_SKELETON_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_INTERFACE_SKELETON         (g_dbus_interface_skeleton_get_type ())
+#define G_DBUS_INTERFACE_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeleton))
+#define G_DBUS_INTERFACE_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
+#define G_DBUS_INTERFACE_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
+#define G_IS_DBUS_INTERFACE_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE_SKELETON))
+#define G_IS_DBUS_INTERFACE_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_INTERFACE_SKELETON))
+
+typedef struct _GDBusInterfaceSkeletonClass   GDBusInterfaceSkeletonClass;
+typedef struct _GDBusInterfaceSkeletonPrivate GDBusInterfaceSkeletonPrivate;
+
+/**
+ * GDBusInterfaceSkeleton:
+ *
+ * The #GDBusInterfaceSkeleton structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceSkeleton
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusInterfaceSkeletonPrivate *priv;
+};
+
+/**
+ * GDBusInterfaceSkeletonClass:
+ * @parent_class: The parent class.
+ * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_skeleton_get_info() for details.
+ * @get_vtable: Returns a #GDBusInterfaceVTable. See g_dbus_interface_skeleton_get_vtable() for details.
+ * @get_properties: Returns a #GVariant with all properties. See g_dbus_interface_skeleton_get_properties().
+ * @flush: Emits outstanding changes, if any. See g_dbus_interface_skeleton_flush().
+ * @g_authorize_method: Signal class handler for the #GDBusInterfaceSkeleton::g-authorize-method signal.
+ *
+ * Class structure for #GDBusInterfaceSkeleton.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceSkeletonClass
+{
+  GObjectClass parent_class;
+
+  /* Virtual Functions */
+  GDBusInterfaceInfo   *(*get_info)       (GDBusInterfaceSkeleton  *interface_);
+  GDBusInterfaceVTable *(*get_vtable)     (GDBusInterfaceSkeleton  *interface_);
+  GVariant             *(*get_properties) (GDBusInterfaceSkeleton  *interface_);
+  void                  (*flush)          (GDBusInterfaceSkeleton  *interface_);
+
+  /*< private >*/
+  gpointer vfunc_padding[8];
+  /*< public >*/
+
+  /* Signals */
+  gboolean (*g_authorize_method) (GDBusInterfaceSkeleton  *interface_,
+                                  GDBusMethodInvocation   *invocation);
+
+  /*< private >*/
+  gpointer signal_padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                        g_dbus_interface_skeleton_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceSkeletonFlags  g_dbus_interface_skeleton_get_flags       (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_set_flags       (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusInterfaceSkeletonFlags  flags);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceInfo          *g_dbus_interface_skeleton_get_info        (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceVTable        *g_dbus_interface_skeleton_get_vtable      (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GVariant                    *g_dbus_interface_skeleton_get_properties  (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_flush           (GDBusInterfaceSkeleton      *interface_);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean                     g_dbus_interface_skeleton_export          (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection,
+                                                                        const gchar                 *object_path,
+                                                                        GError                     **error);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_unexport        (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                g_dbus_interface_skeleton_unexport_from_connection (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection);
+
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection             *g_dbus_interface_skeleton_get_connection  (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GList                       *g_dbus_interface_skeleton_get_connections (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+gboolean                     g_dbus_interface_skeleton_has_connection  (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection);
+GLIB_AVAILABLE_IN_ALL
+const gchar                 *g_dbus_interface_skeleton_get_object_path (GDBusInterfaceSkeleton      *interface_);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_INTERFACE_SKELETON_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
 #ifndef __G_DBUS_INTROSPECTION_H__
 #define __G_DBUS_INTROSPECTION_H__
 
@@ -32646,7 +35020,7 @@ G_BEGIN_DECLS
 struct _GDBusAnnotationInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *key;
   gchar                *value;
   GDBusAnnotationInfo **annotations;
@@ -32666,7 +35040,7 @@ struct _GDBusAnnotationInfo
 struct _GDBusArgInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *name;
   gchar                *signature;
   GDBusAnnotationInfo **annotations;
@@ -32687,7 +35061,7 @@ struct _GDBusArgInfo
 struct _GDBusMethodInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *name;
   GDBusArgInfo        **in_args;
   GDBusArgInfo        **out_args;
@@ -32708,7 +35082,7 @@ struct _GDBusMethodInfo
 struct _GDBusSignalInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *name;
   GDBusArgInfo        **args;
   GDBusAnnotationInfo **annotations;
@@ -32729,7 +35103,7 @@ struct _GDBusSignalInfo
 struct _GDBusPropertyInfo
 {
   /*< public >*/
-  volatile gint             ref_count;
+  gint                      ref_count;  /* (atomic) */
   gchar                    *name;
   gchar                    *signature;
   GDBusPropertyInfoFlags    flags;
@@ -32752,7 +35126,7 @@ struct _GDBusPropertyInfo
 struct _GDBusInterfaceInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *name;
   GDBusMethodInfo     **methods;
   GDBusSignalInfo     **signals;
@@ -32775,7 +35149,7 @@ struct _GDBusInterfaceInfo
 struct _GDBusNodeInfo
 {
   /*< public >*/
-  volatile gint         ref_count;
+  gint                  ref_count;  /* (atomic) */
   gchar                *path;
   GDBusInterfaceInfo  **interfaces;
   GDBusNodeInfo       **nodes;
@@ -32926,6 +35300,50 @@ GType g_dbus_annotation_info_get_type (void) G_GNUC_CONST;
 G_END_DECLS
 
 #endif /* __G_DBUS_INTROSPECTION_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_DBUS_MENU_MODEL_H__
+#define __G_DBUS_MENU_MODEL_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_MENU_MODEL          (g_dbus_menu_model_get_type ())
+#define G_DBUS_MENU_MODEL(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst),   \
+                                         G_TYPE_DBUS_MENU_MODEL, GDBusMenuModel))
+#define G_IS_DBUS_MENU_MODEL(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),   \
+                                         G_TYPE_DBUS_MENU_MODEL))
+
+typedef struct _GDBusMenuModel GDBusMenuModel;
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_dbus_menu_model_get_type     (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GDBusMenuModel *        g_dbus_menu_model_get          (GDBusConnection *connection,
+                                                        const gchar     *bus_name,
+                                                        const gchar     *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_MENU_MODEL_H__ */
 /* GDBus - GLib D-Bus Library
  *
  * Copyright (C) 2008-2010 Red Hat, Inc.
@@ -33156,6 +35574,41 @@ G_BEGIN_DECLS
 #define G_DBUS_METHOD_INVOCATION(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_METHOD_INVOCATION, GDBusMethodInvocation))
 #define G_IS_DBUS_METHOD_INVOCATION(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_METHOD_INVOCATION))
 
+/**
+ * G_DBUS_METHOD_INVOCATION_HANDLED:
+ *
+ * The value returned by handlers of the signals generated by
+ * the `gdbus-codegen` tool to indicate that a method call has been
+ * handled by an implementation. It is equal to %TRUE, but using
+ * this macro is sometimes more readable.
+ *
+ * In code that needs to be backwards-compatible with older GLib,
+ * use %TRUE instead, often written like this:
+ *
+ * |[
+ *   g_dbus_method_invocation_return_error (invocation, ...);
+ *   return TRUE;    // handled
+ * ]|
+ *
+ * Since: 2.68
+ */
+#define G_DBUS_METHOD_INVOCATION_HANDLED TRUE GLIB_AVAILABLE_MACRO_IN_2_68
+
+/**
+ * G_DBUS_METHOD_INVOCATION_UNHANDLED:
+ *
+ * The value returned by handlers of the signals generated by
+ * the `gdbus-codegen` tool to indicate that a method call has not been
+ * handled by an implementation. It is equal to %FALSE, but using
+ * this macro is sometimes more readable.
+ *
+ * In code that needs to be backwards-compatible with older GLib,
+ * use %FALSE instead.
+ *
+ * Since: 2.68
+ */
+#define G_DBUS_METHOD_INVOCATION_UNHANDLED FALSE GLIB_AVAILABLE_MACRO_IN_2_68
+
 GLIB_AVAILABLE_IN_ALL
 GType                  g_dbus_method_invocation_get_type             (void) G_GNUC_CONST;
 GLIB_AVAILABLE_IN_ALL
@@ -33369,7 +35822,7 @@ G_BEGIN_DECLS
  * @name_owner: Unique name of the owner of the name being watched.
  * @user_data: User data passed to g_bus_watch_name().
  *
- * Invoked when the name being watched is known to have to have a owner.
+ * Invoked when the name being watched is known to have to have an owner.
  *
  * Since: 2.26
  */
@@ -33385,7 +35838,7 @@ typedef void (*GBusNameAppearedCallback) (GDBusConnection *connection,
  * @name: The name being watched.
  * @user_data: User data passed to g_bus_watch_name().
  *
- * Invoked when the name being watched is known not to have to have a owner.
+ * Invoked when the name being watched is known not to have to have an owner.
  *
  * This is also invoked when the #GDBusConnection on which the watch was
  * established has been closed.  In that case, @connection will be
@@ -33433,6 +35886,586 @@ void  g_bus_unwatch_name             (guint                     watcher_id);
 G_END_DECLS
 
 #endif /* __G_DBUS_NAME_WATCHING_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_H__
+#define __G_DBUS_OBJECT_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT         (g_dbus_object_get_type())
+#define G_DBUS_OBJECT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT, GDBusObject))
+#define G_IS_DBUS_OBJECT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT))
+#define G_DBUS_OBJECT_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT, GDBusObjectIface))
+
+typedef struct _GDBusObjectIface GDBusObjectIface;
+
+/**
+ * GDBusObjectIface:
+ * @parent_iface: The parent interface.
+ * @get_object_path: Returns the object path. See g_dbus_object_get_object_path().
+ * @get_interfaces: Returns all interfaces. See g_dbus_object_get_interfaces().
+ * @get_interface: Returns an interface by name. See g_dbus_object_get_interface().
+ * @interface_added: Signal handler for the #GDBusObject::interface-added signal.
+ * @interface_removed: Signal handler for the #GDBusObject::interface-removed signal.
+ *
+ * Base object type for D-Bus objects.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  const gchar     *(*get_object_path) (GDBusObject  *object);
+  GList           *(*get_interfaces)  (GDBusObject  *object);
+  GDBusInterface  *(*get_interface)   (GDBusObject  *object,
+                                       const gchar  *interface_name);
+
+  /* Signals */
+  void (*interface_added)   (GDBusObject     *object,
+                             GDBusInterface  *interface_);
+  void (*interface_removed) (GDBusObject     *object,
+                             GDBusInterface  *interface_);
+
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType            g_dbus_object_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+const gchar     *g_dbus_object_get_object_path (GDBusObject  *object);
+GLIB_AVAILABLE_IN_ALL
+GList           *g_dbus_object_get_interfaces  (GDBusObject  *object);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterface  *g_dbus_object_get_interface   (GDBusObject  *object,
+                                                const gchar  *interface_name);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_H__
+#define __G_DBUS_OBJECT_MANAGER_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER         (g_dbus_object_manager_get_type())
+#define G_DBUS_OBJECT_MANAGER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManager))
+#define G_IS_DBUS_OBJECT_MANAGER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER))
+#define G_DBUS_OBJECT_MANAGER_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManagerIface))
+
+typedef struct _GDBusObjectManagerIface GDBusObjectManagerIface;
+
+/**
+ * GDBusObjectManagerIface:
+ * @parent_iface: The parent interface.
+ * @get_object_path: Virtual function for g_dbus_object_manager_get_object_path().
+ * @get_objects: Virtual function for g_dbus_object_manager_get_objects().
+ * @get_object: Virtual function for g_dbus_object_manager_get_object().
+ * @get_interface: Virtual function for g_dbus_object_manager_get_interface().
+ * @object_added: Signal handler for the #GDBusObjectManager::object-added signal.
+ * @object_removed: Signal handler for the #GDBusObjectManager::object-removed signal.
+ * @interface_added: Signal handler for the #GDBusObjectManager::interface-added signal.
+ * @interface_removed: Signal handler for the #GDBusObjectManager::interface-removed signal.
+ *
+ * Base type for D-Bus object managers.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  const gchar     *(*get_object_path) (GDBusObjectManager    *manager);
+  GList           *(*get_objects)     (GDBusObjectManager    *manager);
+  GDBusObject     *(*get_object)      (GDBusObjectManager    *manager,
+                                       const gchar           *object_path);
+  GDBusInterface  *(*get_interface)   (GDBusObjectManager    *manager,
+                                       const gchar           *object_path,
+                                       const gchar           *interface_name);
+
+  /* Signals */
+  void    (*object_added)                 (GDBusObjectManager   *manager,
+                                           GDBusObject          *object);
+  void    (*object_removed)               (GDBusObjectManager   *manager,
+                                           GDBusObject          *object);
+
+  void    (*interface_added)              (GDBusObjectManager   *manager,
+                                           GDBusObject          *object,
+                                           GDBusInterface       *interface_);
+  void    (*interface_removed)            (GDBusObjectManager   *manager,
+                                           GDBusObject          *object,
+                                           GDBusInterface       *interface_);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType            g_dbus_object_manager_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+const gchar     *g_dbus_object_manager_get_object_path (GDBusObjectManager    *manager);
+GLIB_AVAILABLE_IN_ALL
+GList           *g_dbus_object_manager_get_objects     (GDBusObjectManager    *manager);
+GLIB_AVAILABLE_IN_ALL
+GDBusObject     *g_dbus_object_manager_get_object      (GDBusObjectManager    *manager,
+                                                        const gchar           *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterface  *g_dbus_object_manager_get_interface   (GDBusObjectManager    *manager,
+                                                        const gchar           *object_path,
+                                                        const gchar           *interface_name);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_CLIENT_H__
+#define __G_DBUS_OBJECT_MANAGER_CLIENT_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER_CLIENT         (g_dbus_object_manager_client_get_type ())
+#define G_DBUS_OBJECT_MANAGER_CLIENT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClient))
+#define G_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
+#define G_DBUS_OBJECT_MANAGER_CLIENT_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
+#define G_IS_DBUS_OBJECT_MANAGER_CLIENT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
+#define G_IS_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
+
+typedef struct _GDBusObjectManagerClientClass   GDBusObjectManagerClientClass;
+typedef struct _GDBusObjectManagerClientPrivate GDBusObjectManagerClientPrivate;
+
+/**
+ * GDBusObjectManagerClient:
+  *
+ * The #GDBusObjectManagerClient structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerClient
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectManagerClientPrivate *priv;
+};
+
+/**
+ * GDBusObjectManagerClientClass:
+ * @parent_class: The parent class.
+ * @interface_proxy_signal: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-signal signal.
+ * @interface_proxy_properties_changed: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-properties-changed signal.
+ *
+ * Class structure for #GDBusObjectManagerClient.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerClientClass
+{
+  GObjectClass parent_class;
+
+  /* signals */
+  void    (*interface_proxy_signal)             (GDBusObjectManagerClient *manager,
+                                                 GDBusObjectProxy         *object_proxy,
+                                                 GDBusProxy               *interface_proxy,
+                                                 const gchar              *sender_name,
+                                                 const gchar              *signal_name,
+                                                 GVariant                 *parameters);
+
+  void    (*interface_proxy_properties_changed) (GDBusObjectManagerClient   *manager,
+                                                 GDBusObjectProxy           *object_proxy,
+                                                 GDBusProxy                 *interface_proxy,
+                                                 GVariant                   *changed_properties,
+                                                 const gchar* const         *invalidated_properties);
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                         g_dbus_object_manager_client_get_type           (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+void                          g_dbus_object_manager_client_new                (GDBusConnection               *connection,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GAsyncReadyCallback            callback,
+                                                                               gpointer                       user_data);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_finish         (GAsyncResult                  *res,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_sync           (GDBusConnection               *connection,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+void                          g_dbus_object_manager_client_new_for_bus        (GBusType                       bus_type,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GAsyncReadyCallback            callback,
+                                                                               gpointer                       user_data);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_finish (GAsyncResult                  *res,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_sync   (GBusType                       bus_type,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection              *g_dbus_object_manager_client_get_connection     (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManagerClientFlags g_dbus_object_manager_client_get_flags          (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+const gchar                  *g_dbus_object_manager_client_get_name           (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+gchar                        *g_dbus_object_manager_client_get_name_owner     (GDBusObjectManagerClient      *manager);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_CLIENT_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_SERVER_H__
+#define __G_DBUS_OBJECT_MANAGER_SERVER_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER_SERVER         (g_dbus_object_manager_server_get_type ())
+#define G_DBUS_OBJECT_MANAGER_SERVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServer))
+#define G_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
+#define G_DBUS_OBJECT_MANAGER_SERVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
+#define G_IS_DBUS_OBJECT_MANAGER_SERVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
+#define G_IS_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
+
+typedef struct _GDBusObjectManagerServerClass   GDBusObjectManagerServerClass;
+typedef struct _GDBusObjectManagerServerPrivate GDBusObjectManagerServerPrivate;
+
+/**
+ * GDBusObjectManagerServer:
+ *
+ * The #GDBusObjectManagerServer structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerServer
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectManagerServerPrivate *priv;
+};
+
+/**
+ * GDBusObjectManagerServerClass:
+ * @parent_class: The parent class.
+ *
+ * Class structure for #GDBusObjectManagerServer.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerServerClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                     g_dbus_object_manager_server_get_type            (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManagerServer *g_dbus_object_manager_server_new                 (const gchar               *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection          *g_dbus_object_manager_server_get_connection      (GDBusObjectManagerServer  *manager);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_set_connection      (GDBusObjectManagerServer  *manager,
+                                                                            GDBusConnection           *connection);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_export              (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_export_uniquely     (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+gboolean                  g_dbus_object_manager_server_is_exported         (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+gboolean                  g_dbus_object_manager_server_unexport            (GDBusObjectManagerServer  *manager,
+                                                                            const gchar               *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_SERVER_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_PROXY_H__
+#define __G_DBUS_OBJECT_PROXY_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_PROXY         (g_dbus_object_proxy_get_type ())
+#define G_DBUS_OBJECT_PROXY(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxy))
+#define G_DBUS_OBJECT_PROXY_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
+#define G_DBUS_OBJECT_PROXY_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
+#define G_IS_DBUS_OBJECT_PROXY(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_PROXY))
+#define G_IS_DBUS_OBJECT_PROXY_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_PROXY))
+
+typedef struct _GDBusObjectProxyClass   GDBusObjectProxyClass;
+typedef struct _GDBusObjectProxyPrivate GDBusObjectProxyPrivate;
+
+/**
+ * GDBusObjectProxy:
+ *
+ * The #GDBusObjectProxy structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectProxy
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectProxyPrivate *priv;
+};
+
+/**
+ * GDBusObjectProxyClass:
+ * @parent_class: The parent class.
+ *
+ * Class structure for #GDBusObjectProxy.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectProxyClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType             g_dbus_object_proxy_get_type       (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectProxy *g_dbus_object_proxy_new            (GDBusConnection   *connection,
+                                                      const gchar       *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection  *g_dbus_object_proxy_get_connection (GDBusObjectProxy  *proxy);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_PROXY_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_SKELETON_H__
+#define __G_DBUS_OBJECT_SKELETON_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_SKELETON         (g_dbus_object_skeleton_get_type ())
+#define G_DBUS_OBJECT_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeleton))
+#define G_DBUS_OBJECT_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
+#define G_DBUS_OBJECT_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
+#define G_IS_DBUS_OBJECT_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_SKELETON))
+#define G_IS_DBUS_OBJECT_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_SKELETON))
+
+typedef struct _GDBusObjectSkeletonClass   GDBusObjectSkeletonClass;
+typedef struct _GDBusObjectSkeletonPrivate GDBusObjectSkeletonPrivate;
+
+/**
+ * GDBusObjectSkeleton:
+ *
+ * The #GDBusObjectSkeleton structure contains private data and should only be
+ * accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectSkeleton
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectSkeletonPrivate *priv;
+};
+
+/**
+ * GDBusObjectSkeletonClass:
+ * @parent_class: The parent class.
+ * @authorize_method: Signal class handler for the #GDBusObjectSkeleton::authorize-method signal.
+ *
+ * Class structure for #GDBusObjectSkeleton.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectSkeletonClass
+{
+  GObjectClass parent_class;
+
+  /* Signals */
+  gboolean (*authorize_method) (GDBusObjectSkeleton       *object,
+                                GDBusInterfaceSkeleton    *interface_,
+                                GDBusMethodInvocation *invocation);
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                g_dbus_object_skeleton_get_type                  (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectSkeleton *g_dbus_object_skeleton_new                       (const gchar            *object_path);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_flush                     (GDBusObjectSkeleton    *object);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_add_interface             (GDBusObjectSkeleton    *object,
+                                                                       GDBusInterfaceSkeleton *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_remove_interface          (GDBusObjectSkeleton    *object,
+                                                                       GDBusInterfaceSkeleton *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_remove_interface_by_name  (GDBusObjectSkeleton    *object,
+                                                                       const gchar            *interface_name);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_set_object_path           (GDBusObjectSkeleton    *object,
+                                                                       const gchar            *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_SKELETON_H */
 /* GDBus - GLib D-Bus Library
  *
  * Copyright (C) 2008-2010 Red Hat, Inc.
@@ -33816,7 +36849,7 @@ G_BEGIN_DECLS
  * @is_removable: Returns %TRUE if the #GDrive and/or its media is considered removable by the user. Since 2.50.
  * @is_media_removable: Returns %TRUE if the #GDrive supports removal and insertion of media.
  * @has_media: Returns %TRUE if the #GDrive has media inserted.
- * @is_media_check_automatic: Returns %TRUE if the #GDrive is capabable of automatically detecting media changes.
+ * @is_media_check_automatic: Returns %TRUE if the #GDrive is capable of automatically detecting media changes.
  * @can_poll_for_media: Returns %TRUE if the #GDrive is capable of manually polling for media change.
  * @can_eject: Returns %TRUE if the #GDrive can eject media.
  * @eject: Ejects a #GDrive.
@@ -34151,6 +37184,13 @@ struct _GDtlsConnectionInterface
   void (*set_advertised_protocols)        (GDtlsConnection     *conn,
                                            const gchar * const *protocols);
   const gchar *(*get_negotiated_protocol) (GDtlsConnection     *conn);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  gboolean  (*get_binding_data)  (GDtlsConnection         *conn,
+                                  GTlsChannelBindingType   type,
+                                  GByteArray              *data,
+                                  GError                 **error);
+G_GNUC_END_IGNORE_DEPRECATIONS
 };
 
 GLIB_AVAILABLE_IN_2_48
@@ -34185,11 +37225,13 @@ void                  g_dtls_connection_set_require_close_notify    (GDtlsConnec
 GLIB_AVAILABLE_IN_2_48
 gboolean              g_dtls_connection_get_require_close_notify    (GDtlsConnection       *conn);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED_IN_2_60
 void                  g_dtls_connection_set_rehandshake_mode        (GDtlsConnection       *conn,
                                                                      GTlsRehandshakeMode    mode);
 GLIB_DEPRECATED_IN_2_60
 GTlsRehandshakeMode   g_dtls_connection_get_rehandshake_mode        (GDtlsConnection       *conn);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 GLIB_AVAILABLE_IN_2_48
 gboolean              g_dtls_connection_handshake                   (GDtlsConnection       *conn,
@@ -34254,6 +37296,14 @@ void                  g_dtls_connection_set_advertised_protocols    (GDtlsConnec
 
 GLIB_AVAILABLE_IN_2_60
 const gchar *          g_dtls_connection_get_negotiated_protocol     (GDtlsConnection    *conn);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_66
+gboolean              g_dtls_connection_get_channel_binding_data    (GDtlsConnection         *conn,
+                                                                     GTlsChannelBindingType   type,
+                                                                     GByteArray              *data,
+                                                                     GError                 **error);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 G_END_DECLS
 
@@ -34634,240 +37684,6 @@ G_END_DECLS
  * Author: Alexander Larsson <alexl@redhat.com>
  */
 
-#ifndef __G_FILE_ATTRIBUTE_H__
-#define __G_FILE_ATTRIBUTE_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-/**
- * GFileAttributeInfo:
- * @name: the name of the attribute.
- * @type: the #GFileAttributeType type of the attribute.
- * @flags: a set of #GFileAttributeInfoFlags.
- *
- * Information about a specific attribute.
- **/
-struct _GFileAttributeInfo
-{
-  char                    *name;
-  GFileAttributeType       type;
-  GFileAttributeInfoFlags  flags;
-};
-
-/**
- * GFileAttributeInfoList:
- * @infos: an array of #GFileAttributeInfos.
- * @n_infos: the number of values in the array.
- *
- * Acts as a lightweight registry for possible valid file attributes.
- * The registry stores Key-Value pair formats as #GFileAttributeInfos.
- **/
-struct _GFileAttributeInfoList
-{
-  GFileAttributeInfo *infos;
-  int                 n_infos;
-};
-
-#define G_TYPE_FILE_ATTRIBUTE_INFO_LIST (g_file_attribute_info_list_get_type ())
-GLIB_AVAILABLE_IN_ALL
-GType g_file_attribute_info_list_get_type (void);
-
-GLIB_AVAILABLE_IN_ALL
-GFileAttributeInfoList *  g_file_attribute_info_list_new    (void);
-GLIB_AVAILABLE_IN_ALL
-GFileAttributeInfoList *  g_file_attribute_info_list_ref    (GFileAttributeInfoList *list);
-GLIB_AVAILABLE_IN_ALL
-void                      g_file_attribute_info_list_unref  (GFileAttributeInfoList *list);
-GLIB_AVAILABLE_IN_ALL
-GFileAttributeInfoList *  g_file_attribute_info_list_dup    (GFileAttributeInfoList *list);
-GLIB_AVAILABLE_IN_ALL
-const GFileAttributeInfo *g_file_attribute_info_list_lookup (GFileAttributeInfoList *list,
-							     const char             *name);
-GLIB_AVAILABLE_IN_ALL
-void                      g_file_attribute_info_list_add    (GFileAttributeInfoList *list,
-							     const char             *name,
-							     GFileAttributeType      type,
-							     GFileAttributeInfoFlags flags);
-
-G_END_DECLS
-
-#endif /* __G_FILE_INFO_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright (C) 2006-2007 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Alexander Larsson <alexl@redhat.com>
- */
-
-#ifndef __G_FILE_ENUMERATOR_H__
-#define __G_FILE_ENUMERATOR_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_FILE_ENUMERATOR         (g_file_enumerator_get_type ())
-#define G_FILE_ENUMERATOR(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_FILE_ENUMERATOR, GFileEnumerator))
-#define G_FILE_ENUMERATOR_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_FILE_ENUMERATOR, GFileEnumeratorClass))
-#define G_IS_FILE_ENUMERATOR(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_FILE_ENUMERATOR))
-#define G_IS_FILE_ENUMERATOR_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_FILE_ENUMERATOR))
-#define G_FILE_ENUMERATOR_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_FILE_ENUMERATOR, GFileEnumeratorClass))
-
-/**
- * GFileEnumerator:
- *
- * A per matched file iterator.
- **/
-typedef struct _GFileEnumeratorClass    GFileEnumeratorClass;
-typedef struct _GFileEnumeratorPrivate  GFileEnumeratorPrivate;
-
-struct _GFileEnumerator
-{
-  GObject parent_instance;
-
-  /*< private >*/
-  GFileEnumeratorPrivate *priv;
-};
-
-struct _GFileEnumeratorClass
-{
-  GObjectClass parent_class;
-
-  /* Virtual Table */
-
-  GFileInfo * (* next_file)         (GFileEnumerator      *enumerator,
-                                     GCancellable         *cancellable,
-                                     GError              **error);
-  gboolean    (* close_fn)          (GFileEnumerator      *enumerator,
-                                     GCancellable         *cancellable,
-                                     GError              **error);
-
-  void        (* next_files_async)  (GFileEnumerator      *enumerator,
-                                     int                   num_files,
-                                     int                   io_priority,
-                                     GCancellable         *cancellable,
-                                     GAsyncReadyCallback   callback,
-                                     gpointer              user_data);
-  GList *     (* next_files_finish) (GFileEnumerator      *enumerator,
-                                     GAsyncResult         *result,
-                                     GError              **error);
-  void        (* close_async)       (GFileEnumerator      *enumerator,
-                                     int                   io_priority,
-                                     GCancellable         *cancellable,
-                                     GAsyncReadyCallback   callback,
-                                     gpointer              user_data);
-  gboolean    (* close_finish)      (GFileEnumerator      *enumerator,
-                                     GAsyncResult         *result,
-                                     GError              **error);
-
-  /*< private >*/
-  /* Padding for future expansion */
-  void (*_g_reserved1) (void);
-  void (*_g_reserved2) (void);
-  void (*_g_reserved3) (void);
-  void (*_g_reserved4) (void);
-  void (*_g_reserved5) (void);
-  void (*_g_reserved6) (void);
-  void (*_g_reserved7) (void);
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType      g_file_enumerator_get_type          (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_ALL
-GFileInfo *g_file_enumerator_next_file         (GFileEnumerator      *enumerator,
-						GCancellable         *cancellable,
-						GError              **error);
-GLIB_AVAILABLE_IN_ALL
-gboolean   g_file_enumerator_close             (GFileEnumerator      *enumerator,
-						GCancellable         *cancellable,
-						GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void       g_file_enumerator_next_files_async  (GFileEnumerator      *enumerator,
-						int                   num_files,
-						int                   io_priority,
-						GCancellable         *cancellable,
-						GAsyncReadyCallback   callback,
-						gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-GList *    g_file_enumerator_next_files_finish (GFileEnumerator      *enumerator,
-						GAsyncResult         *result,
-						GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void       g_file_enumerator_close_async       (GFileEnumerator      *enumerator,
-						int                   io_priority,
-						GCancellable         *cancellable,
-						GAsyncReadyCallback   callback,
-						gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-gboolean   g_file_enumerator_close_finish      (GFileEnumerator      *enumerator,
-						GAsyncResult         *result,
-						GError              **error);
-GLIB_AVAILABLE_IN_ALL
-gboolean   g_file_enumerator_is_closed         (GFileEnumerator      *enumerator);
-GLIB_AVAILABLE_IN_ALL
-gboolean   g_file_enumerator_has_pending       (GFileEnumerator      *enumerator);
-GLIB_AVAILABLE_IN_ALL
-void       g_file_enumerator_set_pending       (GFileEnumerator      *enumerator,
-						gboolean              pending);
-GLIB_AVAILABLE_IN_ALL
-GFile *    g_file_enumerator_get_container     (GFileEnumerator *enumerator);
-GLIB_AVAILABLE_IN_2_36
-GFile *    g_file_enumerator_get_child         (GFileEnumerator *enumerator,
-                                                GFileInfo       *info);
-
-GLIB_AVAILABLE_IN_2_44
-gboolean   g_file_enumerator_iterate           (GFileEnumerator  *direnum,
-                                                GFileInfo       **out_info,
-                                                GFile           **out_child,
-                                                GCancellable     *cancellable,
-                                                GError          **error);
-
-
-G_END_DECLS
-
-#endif /* __G_FILE_ENUMERATOR_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright (C) 2006-2007 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Alexander Larsson <alexl@redhat.com>
- */
-
 #ifndef __G_FILE_H__
 #define __G_FILE_H__
 
@@ -34960,10 +37776,13 @@ typedef struct _GFileIface    		GFileIface;
  * @make_directory: Makes a directory.
  * @make_directory_async: Asynchronously makes a directory.
  * @make_directory_finish: Finishes making a directory asynchronously.
- * @make_symbolic_link: Makes a symbolic link.
+ * @make_symbolic_link: (nullable): Makes a symbolic link. %NULL if symbolic
+ *    links are unsupported.
  * @_make_symbolic_link_async: Asynchronously makes a symbolic link
  * @_make_symbolic_link_finish: Finishes making a symbolic link asynchronously.
- * @copy: Copies a file.
+ * @copy: (nullable): Copies a file. %NULL if copying is unsupported, which will
+ *     cause `GFile` to use a fallback copy method where it reads from the
+ *     source and writes to the destination.
  * @copy_async: Asynchronously copies a file.
  * @copy_finish: Finishes an asynchronous copy operation.
  * @move: Moves a file.
@@ -34989,16 +37808,16 @@ typedef struct _GFileIface    		GFileIface;
  * @replace_readwrite_async: Asynchronously replaces file read/write. Since 2.22.
  * @replace_readwrite_finish: Finishes an asynchronous replace read/write. Since 2.22.
  * @start_mountable: Starts a mountable object. Since 2.22.
- * @start_mountable_finish: Finishes an start operation. Since 2.22.
+ * @start_mountable_finish: Finishes a start operation. Since 2.22.
  * @stop_mountable: Stops a mountable. Since 2.22.
- * @stop_mountable_finish: Finishes an stop operation. Since 2.22.
+ * @stop_mountable_finish: Finishes a stop operation. Since 2.22.
  * @supports_thread_contexts: a boolean that indicates whether the #GFile implementation supports thread-default contexts. Since 2.22.
  * @unmount_mountable_with_operation: Unmounts a mountable object using a #GMountOperation. Since 2.22.
  * @unmount_mountable_with_operation_finish: Finishes an unmount operation using a #GMountOperation. Since 2.22.
  * @eject_mountable_with_operation: Ejects a mountable object using a #GMountOperation. Since 2.22.
  * @eject_mountable_with_operation_finish: Finishes an eject operation using a #GMountOperation. Since 2.22.
  * @poll_mountable: Polls a mountable object for media changes. Since 2.22.
- * @poll_mountable_finish: Finishes an poll operation for media changes. Since 2.22.
+ * @poll_mountable_finish: Finishes a poll operation for media changes. Since 2.22.
  * @measure_disk_usage: Recursively measures the disk usage of @file. Since 2.38
  * @measure_disk_usage_async: Asynchronously recursively measures the disk usage of @file. Since 2.38
  * @measure_disk_usage_finish: Finishes an asynchronous recursive measurement of the disk usage of @file. Since 2.38
@@ -35940,6 +38759,12 @@ gboolean                g_file_eject_mountable_with_operation_finish (GFile     
 							   GAsyncResult               *result,
 							   GError                    **error);
 
+GLIB_AVAILABLE_IN_2_68
+char *			g_file_build_attribute_list_for_copy (GFile                   *file,
+							   GFileCopyFlags              flags,
+							   GCancellable               *cancellable,
+							   GError                    **error);
+
 GLIB_AVAILABLE_IN_ALL
 gboolean                g_file_copy_attributes            (GFile                      *source,
 							   GFile                      *destination,
@@ -36152,6 +38977,240 @@ G_END_DECLS
  * Author: Alexander Larsson <alexl@redhat.com>
  */
 
+#ifndef __G_FILE_ATTRIBUTE_H__
+#define __G_FILE_ATTRIBUTE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+/**
+ * GFileAttributeInfo:
+ * @name: the name of the attribute.
+ * @type: the #GFileAttributeType type of the attribute.
+ * @flags: a set of #GFileAttributeInfoFlags.
+ *
+ * Information about a specific attribute.
+ **/
+struct _GFileAttributeInfo
+{
+  char                    *name;
+  GFileAttributeType       type;
+  GFileAttributeInfoFlags  flags;
+};
+
+/**
+ * GFileAttributeInfoList:
+ * @infos: an array of #GFileAttributeInfos.
+ * @n_infos: the number of values in the array.
+ *
+ * Acts as a lightweight registry for possible valid file attributes.
+ * The registry stores Key-Value pair formats as #GFileAttributeInfos.
+ **/
+struct _GFileAttributeInfoList
+{
+  GFileAttributeInfo *infos;
+  int                 n_infos;
+};
+
+#define G_TYPE_FILE_ATTRIBUTE_INFO_LIST (g_file_attribute_info_list_get_type ())
+GLIB_AVAILABLE_IN_ALL
+GType g_file_attribute_info_list_get_type (void);
+
+GLIB_AVAILABLE_IN_ALL
+GFileAttributeInfoList *  g_file_attribute_info_list_new    (void);
+GLIB_AVAILABLE_IN_ALL
+GFileAttributeInfoList *  g_file_attribute_info_list_ref    (GFileAttributeInfoList *list);
+GLIB_AVAILABLE_IN_ALL
+void                      g_file_attribute_info_list_unref  (GFileAttributeInfoList *list);
+GLIB_AVAILABLE_IN_ALL
+GFileAttributeInfoList *  g_file_attribute_info_list_dup    (GFileAttributeInfoList *list);
+GLIB_AVAILABLE_IN_ALL
+const GFileAttributeInfo *g_file_attribute_info_list_lookup (GFileAttributeInfoList *list,
+							     const char             *name);
+GLIB_AVAILABLE_IN_ALL
+void                      g_file_attribute_info_list_add    (GFileAttributeInfoList *list,
+							     const char             *name,
+							     GFileAttributeType      type,
+							     GFileAttributeInfoFlags flags);
+
+G_END_DECLS
+
+#endif /* __G_FILE_INFO_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_FILE_ENUMERATOR_H__
+#define __G_FILE_ENUMERATOR_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_FILE_ENUMERATOR         (g_file_enumerator_get_type ())
+#define G_FILE_ENUMERATOR(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_FILE_ENUMERATOR, GFileEnumerator))
+#define G_FILE_ENUMERATOR_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_FILE_ENUMERATOR, GFileEnumeratorClass))
+#define G_IS_FILE_ENUMERATOR(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_FILE_ENUMERATOR))
+#define G_IS_FILE_ENUMERATOR_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_FILE_ENUMERATOR))
+#define G_FILE_ENUMERATOR_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_FILE_ENUMERATOR, GFileEnumeratorClass))
+
+/**
+ * GFileEnumerator:
+ *
+ * A per matched file iterator.
+ **/
+typedef struct _GFileEnumeratorClass    GFileEnumeratorClass;
+typedef struct _GFileEnumeratorPrivate  GFileEnumeratorPrivate;
+
+struct _GFileEnumerator
+{
+  GObject parent_instance;
+
+  /*< private >*/
+  GFileEnumeratorPrivate *priv;
+};
+
+struct _GFileEnumeratorClass
+{
+  GObjectClass parent_class;
+
+  /* Virtual Table */
+
+  GFileInfo * (* next_file)         (GFileEnumerator      *enumerator,
+                                     GCancellable         *cancellable,
+                                     GError              **error);
+  gboolean    (* close_fn)          (GFileEnumerator      *enumerator,
+                                     GCancellable         *cancellable,
+                                     GError              **error);
+
+  void        (* next_files_async)  (GFileEnumerator      *enumerator,
+                                     int                   num_files,
+                                     int                   io_priority,
+                                     GCancellable         *cancellable,
+                                     GAsyncReadyCallback   callback,
+                                     gpointer              user_data);
+  GList *     (* next_files_finish) (GFileEnumerator      *enumerator,
+                                     GAsyncResult         *result,
+                                     GError              **error);
+  void        (* close_async)       (GFileEnumerator      *enumerator,
+                                     int                   io_priority,
+                                     GCancellable         *cancellable,
+                                     GAsyncReadyCallback   callback,
+                                     gpointer              user_data);
+  gboolean    (* close_finish)      (GFileEnumerator      *enumerator,
+                                     GAsyncResult         *result,
+                                     GError              **error);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+  void (*_g_reserved7) (void);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType      g_file_enumerator_get_type          (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GFileInfo *g_file_enumerator_next_file         (GFileEnumerator      *enumerator,
+						GCancellable         *cancellable,
+						GError              **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean   g_file_enumerator_close             (GFileEnumerator      *enumerator,
+						GCancellable         *cancellable,
+						GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void       g_file_enumerator_next_files_async  (GFileEnumerator      *enumerator,
+						int                   num_files,
+						int                   io_priority,
+						GCancellable         *cancellable,
+						GAsyncReadyCallback   callback,
+						gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GList *    g_file_enumerator_next_files_finish (GFileEnumerator      *enumerator,
+						GAsyncResult         *result,
+						GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void       g_file_enumerator_close_async       (GFileEnumerator      *enumerator,
+						int                   io_priority,
+						GCancellable         *cancellable,
+						GAsyncReadyCallback   callback,
+						gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+gboolean   g_file_enumerator_close_finish      (GFileEnumerator      *enumerator,
+						GAsyncResult         *result,
+						GError              **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean   g_file_enumerator_is_closed         (GFileEnumerator      *enumerator);
+GLIB_AVAILABLE_IN_ALL
+gboolean   g_file_enumerator_has_pending       (GFileEnumerator      *enumerator);
+GLIB_AVAILABLE_IN_ALL
+void       g_file_enumerator_set_pending       (GFileEnumerator      *enumerator,
+						gboolean              pending);
+GLIB_AVAILABLE_IN_ALL
+GFile *    g_file_enumerator_get_container     (GFileEnumerator *enumerator);
+GLIB_AVAILABLE_IN_2_36
+GFile *    g_file_enumerator_get_child         (GFileEnumerator *enumerator,
+                                                GFileInfo       *info);
+
+GLIB_AVAILABLE_IN_2_44
+gboolean   g_file_enumerator_iterate           (GFileEnumerator  *direnum,
+                                                GFileInfo       **out_info,
+                                                GFile           **out_child,
+                                                GCancellable     *cancellable,
+                                                GError          **error);
+
+
+G_END_DECLS
+
+#endif /* __G_FILE_ENUMERATOR_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
 #ifndef __G_FILE_ICON_H__
 #define __G_FILE_ICON_H__
 
@@ -36297,7 +39356,8 @@ typedef struct _GFileInfoClass   GFileInfoClass;
  *
  * A key in the "standard" namespace for getting the name of the file.
  * The name is the on-disk filename which may not be in any known encoding,
- * and can thus not be generally displayed as is.
+ * and can thus not be generally displayed as is. It is guaranteed to be set on
+ * every file.
  * Use #G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME if you need to display the
  * name in a user interface.
  * Corresponding #GFileAttributeType is %G_FILE_ATTRIBUTE_TYPE_BYTE_STRING.
@@ -36308,8 +39368,8 @@ typedef struct _GFileInfoClass   GFileInfoClass;
  * G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME:
  *
  * A key in the "standard" namespace for getting the display name of the file.
- * A display name is guaranteed to be in UTF8 and can thus be displayed in
- * the UI.
+ * A display name is guaranteed to be in UTF-8 and can thus be displayed in
+ * the UI. It is guaranteed to be set on every file.
  * Corresponding #GFileAttributeType is %G_FILE_ATTRIBUTE_TYPE_STRING.
  **/
 #define G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME "standard::display-name"     /* string */
@@ -36346,7 +39406,7 @@ typedef struct _GFileInfoClass   GFileInfoClass;
  *
  * A key in the "standard" namespace for getting the description of the file.
  * The description is a utf8 string that describes the file, generally containing
- * the filename, but can also contain furter information. Example descriptions
+ * the filename, but can also contain further information. Example descriptions
  * could be "filename (on hostname)" for a remote file or "filename (in trash)"
  * for a file in the trash. This is useful for instance as the window title
  * when displaying a directory or for a bookmarks menu.
@@ -36728,7 +39788,8 @@ typedef struct _GFileInfoClass   GFileInfoClass;
  * and contains the time since the file was created, in seconds since the UNIX
  * epoch.
  *
- * This corresponds to the NTFS ctime.
+ * This may correspond to Linux stx_btime, FreeBSD st_birthtim, NetBSD
+ * st_birthtime or NTFS ctime.
  **/
 #define G_FILE_ATTRIBUTE_TIME_CREATED "time::created"             /* uint64 */
 
@@ -36767,8 +39828,10 @@ typedef struct _GFileInfoClass   GFileInfoClass;
  * G_FILE_ATTRIBUTE_UNIX_MODE:
  *
  * A key in the "unix" namespace for getting the mode of the file
- * (e.g. whether the file is a regular file, symlink, etc). See lstat()
- * documentation. This attribute is only available for UNIX file systems.
+ * (e.g. whether the file is a regular file, symlink, etc). See the
+ * documentation for `lstat()`: this attribute is equivalent to the `st_mode`
+ * member of `struct stat`, and includes both the file type and permissions.
+ * This attribute is only available for UNIX file systems.
  * Corresponding #GFileAttributeType is %G_FILE_ATTRIBUTE_TYPE_UINT32.
  **/
 #define G_FILE_ATTRIBUTE_UNIX_MODE "unix::mode"                   /* uint32 */
@@ -37235,9 +40298,13 @@ GLIB_AVAILABLE_IN_ALL
 const char *      g_file_info_get_content_type       (GFileInfo         *info);
 GLIB_AVAILABLE_IN_ALL
 goffset           g_file_info_get_size               (GFileInfo         *info);
-GLIB_AVAILABLE_IN_ALL
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_file_info_get_modification_date_time)
 void              g_file_info_get_modification_time  (GFileInfo         *info,
-						      GTimeVal          *result);
+                                                      GTimeVal          *result);
+G_GNUC_END_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_62
+GDateTime *       g_file_info_get_modification_date_time (GFileInfo     *info);
 GLIB_AVAILABLE_IN_ALL
 const char *      g_file_info_get_symlink_target     (GFileInfo         *info);
 GLIB_AVAILABLE_IN_ALL
@@ -37282,9 +40349,14 @@ void              g_file_info_set_content_type       (GFileInfo         *info,
 GLIB_AVAILABLE_IN_ALL
 void              g_file_info_set_size               (GFileInfo         *info,
 						      goffset            size);
-GLIB_AVAILABLE_IN_ALL
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_DEPRECATED_IN_2_62_FOR(g_file_info_set_modification_date_time)
 void              g_file_info_set_modification_time  (GFileInfo         *info,
-						      GTimeVal          *mtime);
+                                                      GTimeVal          *mtime);
+G_GNUC_END_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_62
+void              g_file_info_set_modification_date_time (GFileInfo     *info,
+                                                          GDateTime     *mtime);
 GLIB_AVAILABLE_IN_ALL
 void              g_file_info_set_symlink_target     (GFileInfo         *info,
 						      const char        *symlink_target);
@@ -38155,7 +41227,6 @@ gboolean              g_inet_address_get_is_mc_site_local (GInetAddress         
 G_END_DECLS
 
 #endif /* __G_INET_ADDRESS_H__ */
-
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright 2011 Red Hat, Inc.
@@ -38239,7 +41310,6 @@ gboolean          g_inet_address_mask_equal           (GInetAddressMask  *mask,
 G_END_DECLS
 
 #endif /* __G_INET_ADDRESS_MASK_H__ */
-
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2008 Christian Kellner, Samuel Cormier-Iijima
@@ -38407,7 +41477,7 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-/* enumerations from "../../../../glib/gio/gioenums.h" */
+/* enumerations from "../../../deps/glib/gio/gioenums.h" */
 GLIB_AVAILABLE_IN_ALL GType g_app_info_create_flags_get_type (void) G_GNUC_CONST;
 #define G_TYPE_APP_INFO_CREATE_FLAGS (g_app_info_create_flags_get_type ())
 GLIB_AVAILABLE_IN_ALL GType g_converter_flags_get_type (void) G_GNUC_CONST;
@@ -38528,6 +41598,10 @@ GLIB_AVAILABLE_IN_ALL GType g_tls_certificate_flags_get_type (void) G_GNUC_CONST
 #define G_TYPE_TLS_CERTIFICATE_FLAGS (g_tls_certificate_flags_get_type ())
 GLIB_AVAILABLE_IN_ALL GType g_tls_authentication_mode_get_type (void) G_GNUC_CONST;
 #define G_TYPE_TLS_AUTHENTICATION_MODE (g_tls_authentication_mode_get_type ())
+GLIB_AVAILABLE_IN_ALL GType g_tls_channel_binding_type_get_type (void) G_GNUC_CONST;
+#define G_TYPE_TLS_CHANNEL_BINDING_TYPE (g_tls_channel_binding_type_get_type ())
+GLIB_AVAILABLE_IN_ALL GType g_tls_channel_binding_error_get_type (void) G_GNUC_CONST;
+#define G_TYPE_TLS_CHANNEL_BINDING_ERROR (g_tls_channel_binding_error_get_type ())
 GLIB_AVAILABLE_IN_ALL GType g_tls_rehandshake_mode_get_type (void) G_GNUC_CONST;
 #define G_TYPE_TLS_REHANDSHAKE_MODE (g_tls_rehandshake_mode_get_type ())
 GLIB_AVAILABLE_IN_ALL GType g_tls_password_flags_get_type (void) G_GNUC_CONST;
@@ -38560,12 +41634,14 @@ GLIB_AVAILABLE_IN_ALL GType g_network_connectivity_get_type (void) G_GNUC_CONST;
 #define G_TYPE_NETWORK_CONNECTIVITY (g_network_connectivity_get_type ())
 GLIB_AVAILABLE_IN_ALL GType g_pollable_return_get_type (void) G_GNUC_CONST;
 #define G_TYPE_POLLABLE_RETURN (g_pollable_return_get_type ())
+GLIB_AVAILABLE_IN_ALL GType g_memory_monitor_warning_level_get_type (void) G_GNUC_CONST;
+#define G_TYPE_MEMORY_MONITOR_WARNING_LEVEL (g_memory_monitor_warning_level_get_type ())
 
-/* enumerations from "../../../../glib/gio/gresolver.h" */
+/* enumerations from "../../../deps/glib/gio/gresolver.h" */
 GLIB_AVAILABLE_IN_ALL GType g_resolver_name_lookup_flags_get_type (void) G_GNUC_CONST;
 #define G_TYPE_RESOLVER_NAME_LOOKUP_FLAGS (g_resolver_name_lookup_flags_get_type ())
 
-/* enumerations from "../../../../glib/gio/gsettings.h" */
+/* enumerations from "../../../deps/glib/gio/gsettings.h" */
 GLIB_AVAILABLE_IN_ALL GType g_settings_bind_flags_get_type (void) G_GNUC_CONST;
 #define G_TYPE_SETTINGS_BIND_FLAGS (g_settings_bind_flags_get_type ())
 G_END_DECLS
@@ -38703,7 +41779,7 @@ const gchar *         g_module_name          (GModule      *module);
  * directory where the module file is supposed to be, or NULL or empty
  * in which case it should either be in the current directory or, on
  * some operating systems, in some standard place, for instance on the
- * PATH. Hence, to be absoultely sure to get the correct module,
+ * PATH. Hence, to be absolutely sure to get the correct module,
  * always pass in a directory. The file name consists of the directory,
  * if supplied, and 'module_name' suitably decorated according to
  * the operating system's conventions (for instance lib*.so or *.dll).
@@ -38934,6 +42010,164 @@ void     g_io_scheduler_job_send_to_mainloop_async (GIOSchedulerJob     *job,
 G_END_DECLS
 
 #endif /* __G_IO_SCHEDULER_H__ */
+/*
+ * Copyright 2015 Lars Uebernickel
+ * Copyright 2015 Ryan Lortie
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors:
+ *     Lars Uebernickel <lars@uebernic.de>
+ *     Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_LIST_MODEL_H__
+#define __G_LIST_MODEL_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_LIST_MODEL g_list_model_get_type ()
+GLIB_AVAILABLE_IN_2_44
+G_DECLARE_INTERFACE(GListModel, g_list_model, G, LIST_MODEL, GObject)
+
+struct _GListModelInterface
+{
+  GTypeInterface g_iface;
+
+  GType     (* get_item_type)   (GListModel *list);
+
+  guint     (* get_n_items)     (GListModel *list);
+
+  gpointer  (* get_item)        (GListModel *list,
+                                 guint       position);
+};
+
+GLIB_AVAILABLE_IN_2_44
+GType                   g_list_model_get_item_type                      (GListModel *list);
+
+GLIB_AVAILABLE_IN_2_44
+guint                   g_list_model_get_n_items                        (GListModel *list);
+
+GLIB_AVAILABLE_IN_2_44
+gpointer                g_list_model_get_item                           (GListModel *list,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+GObject *               g_list_model_get_object                         (GListModel *list,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_model_items_changed                      (GListModel *list,
+                                                                         guint       position,
+                                                                         guint       removed,
+                                                                         guint       added);
+
+G_END_DECLS
+
+#endif /* __G_LIST_MODEL_H__ */
+/*
+ * Copyright 2015 Lars Uebernickel
+ * Copyright 2015 Ryan Lortie
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors:
+ *     Lars Uebernickel <lars@uebernic.de>
+ *     Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_LIST_STORE_H__
+#define __G_LIST_STORE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_LIST_STORE (g_list_store_get_type ())
+GLIB_AVAILABLE_IN_2_44
+G_DECLARE_FINAL_TYPE(GListStore, g_list_store, G, LIST_STORE, GObject)
+
+GLIB_AVAILABLE_IN_2_44
+GListStore *            g_list_store_new                                (GType       item_type);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_insert                             (GListStore *store,
+                                                                         guint       position,
+                                                                         gpointer    item);
+
+GLIB_AVAILABLE_IN_2_44
+guint                   g_list_store_insert_sorted                      (GListStore       *store,
+                                                                         gpointer          item,
+                                                                         GCompareDataFunc  compare_func,
+                                                                         gpointer          user_data);
+
+GLIB_AVAILABLE_IN_2_46
+void                   g_list_store_sort                                (GListStore       *store,
+                                                                         GCompareDataFunc  compare_func,
+                                                                         gpointer          user_data);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_append                             (GListStore *store,
+                                                                         gpointer    item);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_remove                             (GListStore *store,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_remove_all                         (GListStore *store);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_splice                             (GListStore *store,
+                                                                         guint       position,
+                                                                         guint       n_removals,
+                                                                         gpointer   *additions,
+                                                                         guint       n_additions);
+
+GLIB_AVAILABLE_IN_2_64
+gboolean                g_list_store_find                               (GListStore *store,
+                                                                         gpointer    item,
+                                                                         guint      *position);
+
+GLIB_AVAILABLE_IN_2_64
+gboolean                g_list_store_find_with_equal_func               (GListStore *store,
+                                                                         gpointer    item,
+                                                                         GEqualFunc  equal_func,
+                                                                         guint      *position);
+
+G_END_DECLS
+
+#endif /* __G_LIST_STORE_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2006-2007 Red Hat, Inc.
@@ -39123,6 +42357,67 @@ G_END_DECLS
 #endif /* __G_MEMORY_INPUT_STREAM_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
+ * Copyright 2019 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_MEMORY_MONITOR_H__
+#define __G_MEMORY_MONITOR_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+/**
+ * G_MEMORY_MONITOR_EXTENSION_POINT_NAME:
+ *
+ * Extension point for memory usage monitoring functionality.
+ * See [Extending GIO][extending-gio].
+ *
+ * Since: 2.64
+ */
+#define G_MEMORY_MONITOR_EXTENSION_POINT_NAME "gio-memory-monitor"
+
+#define G_TYPE_MEMORY_MONITOR             (g_memory_monitor_get_type ())
+GLIB_AVAILABLE_IN_2_64
+G_DECLARE_INTERFACE(GMemoryMonitor, g_memory_monitor, g, memory_monitor, GObject)
+
+#define G_MEMORY_MONITOR(o)               (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_MEMORY_MONITOR, GMemoryMonitor))
+#define G_IS_MEMORY_MONITOR(o)            (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_MEMORY_MONITOR))
+#define G_MEMORY_MONITOR_GET_INTERFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE ((o), G_TYPE_MEMORY_MONITOR, GMemoryMonitorInterface))
+
+struct _GMemoryMonitorInterface {
+  /*< private >*/
+  GTypeInterface g_iface;
+
+  /*< public >*/
+  void     (*low_memory_warning)  (GMemoryMonitor             *monitor,
+                                   GMemoryMonitorWarningLevel  level);
+};
+
+GLIB_AVAILABLE_IN_2_64
+GMemoryMonitor      *g_memory_monitor_dup_default           (void);
+
+G_END_DECLS
+
+#endif /* __G_MEMORY_MONITOR_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
  * Copyright (C) 2006-2007 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
@@ -39227,6 +42522,528 @@ GBytes *       g_memory_output_stream_steal_as_bytes (GMemoryOutputStream *ostre
 G_END_DECLS
 
 #endif /* __G_MEMORY_OUTPUT_STREAM_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_H__
+#define __G_MENU_H__
+
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_MODEL_H__
+#define __G_MENU_MODEL_H__
+
+
+
+G_BEGIN_DECLS
+
+/**
+ * G_MENU_ATTRIBUTE_ACTION:
+ *
+ * The menu item attribute which holds the action name of the item.  Action
+ * names are namespaced with an identifier for the action group in which the
+ * action resides. For example, "win." for window-specific actions and "app."
+ * for application-wide actions.
+ *
+ * See also g_menu_model_get_item_attribute() and g_menu_item_set_attribute().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_ACTION "action"
+
+/**
+ * G_MENU_ATTRIBUTE_ACTION_NAMESPACE:
+ *
+ * The menu item attribute that holds the namespace for all action names in
+ * menus that are linked from this item.
+ *
+ * Since: 2.36
+ **/
+#define G_MENU_ATTRIBUTE_ACTION_NAMESPACE "action-namespace"
+
+/**
+ * G_MENU_ATTRIBUTE_TARGET:
+ *
+ * The menu item attribute which holds the target with which the item's action
+ * will be activated.
+ *
+ * See also g_menu_item_set_action_and_target()
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_TARGET "target"
+
+/**
+ * G_MENU_ATTRIBUTE_LABEL:
+ *
+ * The menu item attribute which holds the label of the item.
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_LABEL "label"
+
+/**
+ * G_MENU_ATTRIBUTE_ICON:
+ *
+ * The menu item attribute which holds the icon of the item.
+ *
+ * The icon is stored in the format returned by g_icon_serialize().
+ *
+ * This attribute is intended only to represent 'noun' icons such as
+ * favicons for a webpage, or application icons.  It should not be used
+ * for 'verbs' (ie: stock icons).
+ *
+ * Since: 2.38
+ **/
+#define G_MENU_ATTRIBUTE_ICON "icon"
+
+/**
+ * G_MENU_LINK_SUBMENU:
+ *
+ * The name of the link that associates a menu item with a submenu.
+ *
+ * See also g_menu_item_set_link().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_LINK_SUBMENU "submenu"
+
+/**
+ * G_MENU_LINK_SECTION:
+ *
+ * The name of the link that associates a menu item with a section.  The linked
+ * menu will usually be shown in place of the menu item, using the item's label
+ * as a header.
+ *
+ * See also g_menu_item_set_link().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_LINK_SECTION "section"
+
+#define G_TYPE_MENU_MODEL                                   (g_menu_model_get_type ())
+#define G_MENU_MODEL(inst)                                  (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_MODEL, GMenuModel))
+#define G_MENU_MODEL_CLASS(class)                           (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
+#define G_IS_MENU_MODEL(inst)                               (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_MODEL))
+#define G_IS_MENU_MODEL_CLASS(class)                        (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_MODEL))
+#define G_MENU_MODEL_GET_CLASS(inst)                        (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
+
+typedef struct _GMenuModelPrivate                           GMenuModelPrivate;
+typedef struct _GMenuModelClass                             GMenuModelClass;
+
+typedef struct _GMenuAttributeIterPrivate                   GMenuAttributeIterPrivate;
+typedef struct _GMenuAttributeIterClass                     GMenuAttributeIterClass;
+typedef struct _GMenuAttributeIter                          GMenuAttributeIter;
+
+typedef struct _GMenuLinkIterPrivate                        GMenuLinkIterPrivate;
+typedef struct _GMenuLinkIterClass                          GMenuLinkIterClass;
+typedef struct _GMenuLinkIter                               GMenuLinkIter;
+
+struct _GMenuModel
+{
+  GObject            parent_instance;
+  GMenuModelPrivate *priv;
+};
+
+/**
+ * GMenuModelClass::get_item_attributes:
+ * @model: the #GMenuModel to query
+ * @item_index: The #GMenuItem to query
+ * @attributes: (out) (element-type utf8 GLib.Variant): Attributes on the item
+ *
+ * Gets all the attributes associated with the item in the menu model.
+ */
+/**
+ * GMenuModelClass::get_item_links:
+ * @model: the #GMenuModel to query
+ * @item_index: The #GMenuItem to query
+ * @links: (out) (element-type utf8 Gio.MenuModel): Links from the item
+ *
+ * Gets all the links associated with the item in the menu model.
+ */
+struct _GMenuModelClass
+{
+  GObjectClass parent_class;
+
+  gboolean              (*is_mutable)                       (GMenuModel          *model);
+  gint                  (*get_n_items)                      (GMenuModel          *model);
+  void                  (*get_item_attributes)              (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             GHashTable         **attributes);
+  GMenuAttributeIter *  (*iterate_item_attributes)          (GMenuModel          *model,
+                                                             gint                 item_index);
+  GVariant *            (*get_item_attribute_value)         (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             const gchar         *attribute,
+                                                             const GVariantType  *expected_type);
+  void                  (*get_item_links)                   (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             GHashTable         **links);
+  GMenuLinkIter *       (*iterate_item_links)               (GMenuModel          *model,
+                                                             gint                 item_index);
+  GMenuModel *          (*get_item_link)                    (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             const gchar         *link);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_model_get_type                           (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_model_is_mutable                         (GMenuModel         *model);
+GLIB_AVAILABLE_IN_2_32
+gint                    g_menu_model_get_n_items                        (GMenuModel         *model);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuAttributeIter *    g_menu_model_iterate_item_attributes            (GMenuModel         *model,
+                                                                         gint                item_index);
+GLIB_AVAILABLE_IN_2_32
+GVariant *              g_menu_model_get_item_attribute_value           (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *attribute,
+                                                                         const GVariantType *expected_type);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_model_get_item_attribute                 (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *attribute,
+                                                                         const gchar        *format_string,
+                                                                         ...);
+GLIB_AVAILABLE_IN_2_32
+GMenuLinkIter *         g_menu_model_iterate_item_links                 (GMenuModel         *model,
+                                                                         gint                item_index);
+GLIB_AVAILABLE_IN_2_32
+GMenuModel *            g_menu_model_get_item_link                      (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *link);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_menu_model_items_changed                      (GMenuModel         *model,
+                                                                         gint                position,
+                                                                         gint                removed,
+                                                                         gint                added);
+
+
+#define G_TYPE_MENU_ATTRIBUTE_ITER                          (g_menu_attribute_iter_get_type ())
+#define G_MENU_ATTRIBUTE_ITER(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIter))
+#define G_MENU_ATTRIBUTE_ITER_CLASS(class)                  (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
+#define G_IS_MENU_ATTRIBUTE_ITER(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
+#define G_IS_MENU_ATTRIBUTE_ITER_CLASS(class)               (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
+#define G_MENU_ATTRIBUTE_ITER_GET_CLASS(inst)               (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
+
+struct _GMenuAttributeIter
+{
+  GObject parent_instance;
+  GMenuAttributeIterPrivate *priv;
+};
+
+struct _GMenuAttributeIterClass
+{
+  GObjectClass parent_class;
+
+  gboolean      (*get_next) (GMenuAttributeIter  *iter,
+                             const gchar        **out_name,
+                             GVariant           **value);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_attribute_iter_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_attribute_iter_get_next                  (GMenuAttributeIter  *iter,
+                                                                         const gchar        **out_name,
+                                                                         GVariant           **value);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_attribute_iter_next                      (GMenuAttributeIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+const gchar *           g_menu_attribute_iter_get_name                  (GMenuAttributeIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+GVariant *              g_menu_attribute_iter_get_value                 (GMenuAttributeIter  *iter);
+
+
+#define G_TYPE_MENU_LINK_ITER                               (g_menu_link_iter_get_type ())
+#define G_MENU_LINK_ITER(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIter))
+#define G_MENU_LINK_ITER_CLASS(class)                       (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
+#define G_IS_MENU_LINK_ITER(inst)                           (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_LINK_ITER))
+#define G_IS_MENU_LINK_ITER_CLASS(class)                    (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_LINK_ITER))
+#define G_MENU_LINK_ITER_GET_CLASS(inst)                    (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
+
+struct _GMenuLinkIter
+{
+  GObject parent_instance;
+  GMenuLinkIterPrivate *priv;
+};
+
+struct _GMenuLinkIterClass
+{
+  GObjectClass parent_class;
+
+  gboolean      (*get_next) (GMenuLinkIter  *iter,
+                             const gchar   **out_link,
+                             GMenuModel    **value);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_link_iter_get_type                       (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_link_iter_get_next                       (GMenuLinkIter  *iter,
+                                                                         const gchar   **out_link,
+                                                                         GMenuModel    **value);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_link_iter_next                           (GMenuLinkIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+const gchar *           g_menu_link_iter_get_name                       (GMenuLinkIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+GMenuModel *            g_menu_link_iter_get_value                      (GMenuLinkIter  *iter);
+
+G_END_DECLS
+
+#endif /* __G_MENU_MODEL_H__ */
+
+G_BEGIN_DECLS
+
+#define G_TYPE_MENU          (g_menu_get_type ())
+#define G_MENU(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
+                              G_TYPE_MENU, GMenu))
+#define G_IS_MENU(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
+                              G_TYPE_MENU))
+
+#define G_TYPE_MENU_ITEM     (g_menu_item_get_type ())
+#define G_MENU_ITEM(inst)    (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
+                              G_TYPE_MENU_ITEM, GMenuItem))
+#define G_IS_MENU_ITEM(inst) (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
+                              G_TYPE_MENU_ITEM))
+
+typedef struct _GMenuItem GMenuItem;
+typedef struct _GMenu     GMenu;
+
+GLIB_AVAILABLE_IN_2_32
+GType       g_menu_get_type                         (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_32
+GMenu *     g_menu_new                              (void);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_freeze                           (GMenu       *menu);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_item                      (GMenu       *menu,
+                                                     gint         position,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_item                     (GMenu       *menu,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_item                      (GMenu       *menu,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_remove                           (GMenu       *menu,
+                                                     gint         position);
+
+GLIB_AVAILABLE_IN_2_38
+void        g_menu_remove_all                       (GMenu       *menu);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert                           (GMenu       *menu,
+                                                     gint         position,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend                          (GMenu       *menu,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append                           (GMenu       *menu,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_section                   (GMenu       *menu,
+                                                     gint         position,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_section                  (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_section                   (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_submenu                   (GMenu       *menu,
+                                                     gint        position,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_submenu                  (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_submenu                   (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+
+
+GLIB_AVAILABLE_IN_2_32
+GType       g_menu_item_get_type                    (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new                         (const gchar *label,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_34
+GMenuItem * g_menu_item_new_from_model              (GMenuModel  *model,
+                                                     gint         item_index);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new_submenu                 (const gchar *label,
+                                                     GMenuModel  *submenu);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new_section                 (const gchar *label,
+                                                     GMenuModel  *section);
+
+GLIB_AVAILABLE_IN_2_34
+GVariant *  g_menu_item_get_attribute_value         (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const GVariantType *expected_type);
+GLIB_AVAILABLE_IN_2_34
+gboolean    g_menu_item_get_attribute               (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_34
+GMenuModel *g_menu_item_get_link                    (GMenuItem   *menu_item,
+                                                     const gchar *link);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_attribute_value         (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     GVariant    *value);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_attribute               (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_link                    (GMenuItem   *menu_item,
+                                                     const gchar *link,
+                                                     GMenuModel  *model);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_label                   (GMenuItem   *menu_item,
+                                                     const gchar *label);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_submenu                 (GMenuItem   *menu_item,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_section                 (GMenuItem   *menu_item,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_action_and_target_value (GMenuItem   *menu_item,
+                                                     const gchar *action,
+                                                     GVariant    *target_value);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_action_and_target       (GMenuItem   *menu_item,
+                                                     const gchar *action,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_detailed_action         (GMenuItem   *menu_item,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_38
+void        g_menu_item_set_icon                    (GMenuItem   *menu_item,
+                                                     GIcon       *icon);
+
+G_END_DECLS
+
+#endif /* __G_MENU_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_EXPORTER_H__
+#define __G_MENU_EXPORTER_H__
+
+
+G_BEGIN_DECLS
+
+GLIB_AVAILABLE_IN_2_32
+guint                   g_dbus_connection_export_menu_model             (GDBusConnection  *connection,
+                                                                         const gchar      *object_path,
+                                                                         GMenuModel       *menu,
+                                                                         GError          **error);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_dbus_connection_unexport_menu_model           (GDBusConnection  *connection,
+                                                                         guint             export_id);
+
+G_END_DECLS
+
+#endif /* __G_MENU_EXPORTER_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2006-2008 Red Hat, Inc.
@@ -39678,6 +43495,70 @@ void          g_mount_operation_set_pim           (GMountOperation *op,
 G_END_DECLS
 
 #endif /* __G_MOUNT_OPERATION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2008 Christian Kellner, Samuel Cormier-Iijima
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Kellner <gicmo@gnome.org>
+ *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
+ */
+
+#ifndef __G_NATIVE_SOCKET_ADDRESS_H__
+#define __G_NATIVE_SOCKET_ADDRESS_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_NATIVE_SOCKET_ADDRESS         (g_native_socket_address_get_type ())
+#define G_NATIVE_SOCKET_ADDRESS(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_NATIVE_SOCKET_ADDRESS, GNativeSocketAddress))
+#define G_NATIVE_SOCKET_ADDRESS_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_NATIVE_SOCKET_ADDRESS, GNativeSocketAddressClass))
+#define G_IS_NATIVE_SOCKET_ADDRESS(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_NATIVE_SOCKET_ADDRESS))
+#define G_IS_NATIVE_SOCKET_ADDRESS_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_NATIVE_SOCKET_ADDRESS))
+#define G_NATIVE_SOCKET_ADDRESS_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_NATIVE_SOCKET_ADDRESS, GNativeSocketAddressClass))
+
+typedef struct _GNativeSocketAddressClass   GNativeSocketAddressClass;
+typedef struct _GNativeSocketAddressPrivate GNativeSocketAddressPrivate;
+
+struct _GNativeSocketAddress
+{
+  GSocketAddress parent_instance;
+
+  /*< private >*/
+  GNativeSocketAddressPrivate *priv;
+};
+
+struct _GNativeSocketAddressClass
+{
+  GSocketAddressClass parent_class;
+};
+
+GLIB_AVAILABLE_IN_2_46
+GType           g_native_socket_address_get_type        (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_46
+GSocketAddress *g_native_socket_address_new            (gpointer        native,
+                                                        gsize           len);
+
+G_END_DECLS
+
+#endif /* __G_NATIVE_SOCKET_ADDRESS_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2006-2007 Red Hat, Inc.
@@ -40142,7 +44023,101 @@ void                 g_network_service_set_scheme    (GNetworkService *srv, cons
 G_END_DECLS
 
 #endif /* __G_NETWORK_SERVICE_H__ */
+/*
+ * Copyright © 2013 Lars Uebernickel
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Lars Uebernickel <lars@uebernic.de>
+ */
 
+#ifndef __G_NOTIFICATION_H__
+#define __G_NOTIFICATION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_NOTIFICATION         (g_notification_get_type ())
+#define G_NOTIFICATION(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_NOTIFICATION, GNotification))
+#define G_IS_NOTIFICATION(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_NOTIFICATION))
+
+GLIB_AVAILABLE_IN_2_40
+GType                   g_notification_get_type                         (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_40
+GNotification *         g_notification_new                              (const gchar *title);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_title                        (GNotification *notification,
+                                                                         const gchar   *title);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_body                         (GNotification *notification,
+                                                                         const gchar   *body);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_icon                         (GNotification *notification,
+                                                                         GIcon         *icon);
+
+GLIB_DEPRECATED_IN_2_42_FOR(g_notification_set_priority)
+void                    g_notification_set_urgent                       (GNotification *notification,
+                                                                         gboolean       urgent);
+
+GLIB_AVAILABLE_IN_2_42
+void                    g_notification_set_priority                     (GNotification         *notification,
+                                                                         GNotificationPriority  priority);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button                       (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *detailed_action);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button_with_target           (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *action,
+                                                                         const gchar   *target_format,
+                                                                         ...);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button_with_target_value     (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *action,
+                                                                         GVariant      *target);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_default_action               (GNotification *notification,
+                                                                         const gchar   *detailed_action);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_default_action_and_target    (GNotification *notification,
+                                                                         const gchar   *action,
+                                                                         const gchar   *target_format,
+                                                                         ...);
+
+GLIB_AVAILABLE_IN_2_40
+void                 g_notification_set_default_action_and_target_value (GNotification *notification,
+                                                                         const gchar   *action,
+                                                                         GVariant      *target);
+
+G_END_DECLS
+
+#endif
 /*
  * Copyright © 2010 Codethink Limited
  *
@@ -40372,7 +44347,6 @@ G_END_DECLS
 
 
 #endif /* __G_POLLABLE_INPUT_STREAM_H__ */
-
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2010 Red Hat, Inc.
@@ -40497,7 +44471,6 @@ G_END_DECLS
 
 
 #endif /* __G_POLLABLE_OUTPUT_STREAM_H__ */
-
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2012 Red Hat, Inc.
@@ -41093,6 +45066,80 @@ gchar	      **g_proxy_resolver_lookup_finish  (GProxyResolver       *resolver,
 G_END_DECLS
 
 #endif /* __G_PROXY_RESOLVER_H__ */
+/*
+ * Copyright © 2011 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_REMOTE_ACTION_GROUP_H__
+#define __G_REMOTE_ACTION_GROUP_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+
+#define G_TYPE_REMOTE_ACTION_GROUP                          (g_remote_action_group_get_type ())
+#define G_REMOTE_ACTION_GROUP(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                      \
+                                                             G_TYPE_REMOTE_ACTION_GROUP, GRemoteActionGroup))
+#define G_IS_REMOTE_ACTION_GROUP(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                      \
+                                                             G_TYPE_REMOTE_ACTION_GROUP))
+#define G_REMOTE_ACTION_GROUP_GET_IFACE(inst)               (G_TYPE_INSTANCE_GET_INTERFACE ((inst),                   \
+                                                             G_TYPE_REMOTE_ACTION_GROUP,                              \
+                                                             GRemoteActionGroupInterface))
+
+typedef struct _GRemoteActionGroupInterface                 GRemoteActionGroupInterface;
+
+struct _GRemoteActionGroupInterface
+{
+  GTypeInterface g_iface;
+
+  void (* activate_action_full)     (GRemoteActionGroup *remote,
+                                     const gchar        *action_name,
+                                     GVariant           *parameter,
+                                     GVariant           *platform_data);
+
+  void (* change_action_state_full) (GRemoteActionGroup *remote,
+                                     const gchar        *action_name,
+                                     GVariant           *value,
+                                     GVariant           *platform_data);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_remote_action_group_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_remote_action_group_activate_action_full      (GRemoteActionGroup *remote,
+                                                                         const gchar        *action_name,
+                                                                         GVariant           *parameter,
+                                                                         GVariant           *platform_data);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_remote_action_group_change_action_state_full  (GRemoteActionGroup *remote,
+                                                                         const gchar        *action_name,
+                                                                         GVariant           *value,
+                                                                         GVariant           *platform_data);
+
+G_END_DECLS
+
+#endif /* __G_REMOTE_ACTION_GROUP_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2008 Red Hat, Inc.
@@ -41616,6 +45663,32 @@ G_END_DECLS
 
 #endif /* __G_SEEKABLE_H__ */
 /*
+ * Copyright © 2009, 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SETTINGS_H__
+#define __G_SETTINGS_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+/*
  * Copyright © 2010 Codethink Limited
  * Copyright © 2011 Canonical Limited
  *
@@ -41726,32 +45799,6 @@ const gchar *           g_settings_schema_key_get_description           (GSettin
 G_END_DECLS
 
 #endif /* __G_SETTINGS_SCHEMA_H__ */
-/*
- * Copyright © 2009, 2010 Codethink Limited
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_SETTINGS_H__
-#define __G_SETTINGS_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
 
 G_BEGIN_DECLS
 
@@ -42476,8 +46523,7 @@ G_END_DECLS
 #endif /* __G_SIMPLE_PERMISSION_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
- * Copyright © 2008, 2009 Codethink Limited
- * Copyright © 2009 Red Hat, Inc
+ * Copyright 2010, 2013 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -42491,13 +46537,10 @@ G_END_DECLS
  *
  * You should have received a copy of the GNU Lesser General
  * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Ryan Lortie <desrt@desrt.ca>
- *          Alexander Larsson <alexl@redhat.com>
  */
 
-#ifndef __G_SOCKET_CLIENT_H__
-#define __G_SOCKET_CLIENT_H__
+#ifndef __G_SIMPLE_PROXY_RESOLVER_H__
+#define __G_SIMPLE_PROXY_RESOLVER_H__
 
 #if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
 #error "Only <gio/gio.h> can be included directly."
@@ -42506,280 +46549,66 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-#define G_TYPE_SOCKET_CLIENT                                (g_socket_client_get_type ())
-#define G_SOCKET_CLIENT(inst)                               (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                             G_TYPE_SOCKET_CLIENT, GSocketClient))
-#define G_SOCKET_CLIENT_CLASS(class)                        (G_TYPE_CHECK_CLASS_CAST ((class),                       \
-                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
-#define G_IS_SOCKET_CLIENT(inst)                            (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
-                                                             G_TYPE_SOCKET_CLIENT))
-#define G_IS_SOCKET_CLIENT_CLASS(class)                     (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
-                                                             G_TYPE_SOCKET_CLIENT))
-#define G_SOCKET_CLIENT_GET_CLASS(inst)                     (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
-                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
+#define G_TYPE_SIMPLE_PROXY_RESOLVER         (g_simple_proxy_resolver_get_type ())
+#define G_SIMPLE_PROXY_RESOLVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolver))
+#define G_SIMPLE_PROXY_RESOLVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
+#define G_IS_SIMPLE_PROXY_RESOLVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SIMPLE_PROXY_RESOLVER))
+#define G_IS_SIMPLE_PROXY_RESOLVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_SIMPLE_PROXY_RESOLVER))
+#define G_SIMPLE_PROXY_RESOLVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
 
-typedef struct _GSocketClientPrivate                        GSocketClientPrivate;
-typedef struct _GSocketClientClass                          GSocketClientClass;
+/**
+ * GSimpleProxyResolver:
+ *
+ * A #GProxyResolver implementation for using a fixed set of proxies.
+ **/
+typedef struct _GSimpleProxyResolver GSimpleProxyResolver;
+typedef struct _GSimpleProxyResolverPrivate GSimpleProxyResolverPrivate;
+typedef struct _GSimpleProxyResolverClass GSimpleProxyResolverClass;
 
-struct _GSocketClientClass
+struct _GSimpleProxyResolver
+{
+  GObject parent_instance;
+
+  /*< private >*/
+  GSimpleProxyResolverPrivate *priv;
+};
+
+struct _GSimpleProxyResolverClass
 {
   GObjectClass parent_class;
 
-  void (* event) (GSocketClient       *client,
-		  GSocketClientEvent  event,
-		  GSocketConnectable  *connectable,
-		  GIOStream           *connection);
-
+  /*< private >*/
   /* Padding for future expansion */
   void (*_g_reserved1) (void);
   void (*_g_reserved2) (void);
   void (*_g_reserved3) (void);
   void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
 };
 
-struct _GSocketClient
-{
-  GObject parent_instance;
-  GSocketClientPrivate *priv;
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                   g_socket_client_get_type                        (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_ALL
-GSocketClient          *g_socket_client_new                             (void);
-
-GLIB_AVAILABLE_IN_ALL
-GSocketFamily           g_socket_client_get_family                      (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_family                      (GSocketClient        *client,
-									 GSocketFamily         family);
-GLIB_AVAILABLE_IN_ALL
-GSocketType             g_socket_client_get_socket_type                 (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_socket_type                 (GSocketClient        *client,
-									 GSocketType           type);
-GLIB_AVAILABLE_IN_ALL
-GSocketProtocol         g_socket_client_get_protocol                    (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_protocol                    (GSocketClient        *client,
-									 GSocketProtocol       protocol);
-GLIB_AVAILABLE_IN_ALL
-GSocketAddress         *g_socket_client_get_local_address               (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_local_address               (GSocketClient        *client,
-									 GSocketAddress       *address);
-GLIB_AVAILABLE_IN_ALL
-guint                   g_socket_client_get_timeout                     (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_timeout                     (GSocketClient        *client,
-									 guint                 timeout);
-GLIB_AVAILABLE_IN_ALL
-gboolean                g_socket_client_get_enable_proxy                (GSocketClient        *client);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_set_enable_proxy                (GSocketClient        *client,
-    									 gboolean	      enable);
-
-GLIB_AVAILABLE_IN_2_28
-gboolean                g_socket_client_get_tls                         (GSocketClient        *client);
-GLIB_AVAILABLE_IN_2_28
-void                    g_socket_client_set_tls                         (GSocketClient        *client,
-									 gboolean              tls);
-GLIB_AVAILABLE_IN_2_28
-GTlsCertificateFlags    g_socket_client_get_tls_validation_flags        (GSocketClient        *client);
-GLIB_AVAILABLE_IN_2_28
-void                    g_socket_client_set_tls_validation_flags        (GSocketClient        *client,
-									 GTlsCertificateFlags  flags);
 GLIB_AVAILABLE_IN_2_36
-GProxyResolver         *g_socket_client_get_proxy_resolver              (GSocketClient        *client);
+GType           g_simple_proxy_resolver_get_type          (void) G_GNUC_CONST;
+
 GLIB_AVAILABLE_IN_2_36
-void                    g_socket_client_set_proxy_resolver              (GSocketClient        *client,
-                                                                         GProxyResolver       *proxy_resolver);
+GProxyResolver *g_simple_proxy_resolver_new               (const gchar           *default_proxy,
+                                                           gchar                **ignore_hosts);
 
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect                         (GSocketClient        *client,
-                                                                         GSocketConnectable   *connectable,
-                                                                         GCancellable         *cancellable,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_to_host                 (GSocketClient        *client,
-									 const gchar          *host_and_port,
-									 guint16               default_port,
-                                                                         GCancellable         *cancellable,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_to_service              (GSocketClient        *client,
-									 const gchar          *domain,
-									 const gchar          *service,
-                                                                         GCancellable         *cancellable,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_2_26
-GSocketConnection *     g_socket_client_connect_to_uri                  (GSocketClient        *client,
-									 const gchar          *uri,
-									 guint16               default_port,
-                                                                         GCancellable         *cancellable,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_connect_async                   (GSocketClient        *client,
-                                                                         GSocketConnectable   *connectable,
-                                                                         GCancellable         *cancellable,
-                                                                         GAsyncReadyCallback   callback,
-                                                                         gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_finish                  (GSocketClient        *client,
-                                                                         GAsyncResult         *result,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_connect_to_host_async           (GSocketClient        *client,
-									 const gchar          *host_and_port,
-									 guint16               default_port,
-                                                                         GCancellable         *cancellable,
-                                                                         GAsyncReadyCallback   callback,
-                                                                         gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_to_host_finish          (GSocketClient        *client,
-                                                                         GAsyncResult         *result,
-                                                                         GError              **error);
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_default_proxy (GSimpleProxyResolver  *resolver,
+                                                           const gchar           *default_proxy);
 
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_connect_to_service_async        (GSocketClient        *client,
-									 const gchar          *domain,
-									 const gchar          *service,
-                                                                         GCancellable         *cancellable,
-                                                                         GAsyncReadyCallback   callback,
-                                                                         gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_to_service_finish       (GSocketClient        *client,
-                                                                         GAsyncResult         *result,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void                    g_socket_client_connect_to_uri_async            (GSocketClient        *client,
-									 const gchar          *uri,
-									 guint16               default_port,
-                                                                         GCancellable         *cancellable,
-                                                                         GAsyncReadyCallback   callback,
-                                                                         gpointer              user_data);
-GLIB_AVAILABLE_IN_ALL
-GSocketConnection *     g_socket_client_connect_to_uri_finish           (GSocketClient        *client,
-                                                                         GAsyncResult         *result,
-                                                                         GError              **error);
-GLIB_AVAILABLE_IN_ALL
-void			g_socket_client_add_application_proxy		(GSocketClient        *client,
-									 const gchar          *protocol);
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_ignore_hosts  (GSimpleProxyResolver  *resolver,
+                                                           gchar                **ignore_hosts);
+
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_uri_proxy     (GSimpleProxyResolver  *resolver,
+                                                           const gchar           *uri_scheme,
+                                                           const gchar           *proxy);
 
 G_END_DECLS
 
-#endif /* __G_SOCKET_CLIENT_H___ */
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright (C) 2008 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- */
-
-#ifndef __G_SOCKET_CONNECTABLE_H__
-#define __G_SOCKET_CONNECTABLE_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_SOCKET_CONNECTABLE            (g_socket_connectable_get_type ())
-#define G_SOCKET_CONNECTABLE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectable))
-#define G_IS_SOCKET_CONNECTABLE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_SOCKET_CONNECTABLE))
-#define G_SOCKET_CONNECTABLE_GET_IFACE(obj)  (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectableIface))
-
-/**
- * GSocketConnectable:
- *
- * Interface for objects that contain or generate a #GSocketAddress.
- */
-typedef struct _GSocketConnectableIface GSocketConnectableIface;
-
-/**
- * GSocketConnectableIface:
- * @g_iface: The parent interface.
- * @enumerate: Creates a #GSocketAddressEnumerator
- * @proxy_enumerate: Creates a #GProxyAddressEnumerator
- * @to_string: Format the connectable’s address as a string for debugging.
- *    Implementing this is optional. (Since: 2.48)
- *
- * Provides an interface for returning a #GSocketAddressEnumerator
- * and #GProxyAddressEnumerator
- */
-struct _GSocketConnectableIface
-{
-  GTypeInterface g_iface;
-
-  /* Virtual Table */
-
-  GSocketAddressEnumerator * (* enumerate)       (GSocketConnectable *connectable);
-
-  GSocketAddressEnumerator * (* proxy_enumerate) (GSocketConnectable *connectable);
-
-  gchar                    * (* to_string)       (GSocketConnectable *connectable);
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                     g_socket_connectable_get_type  (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_ALL
-GSocketAddressEnumerator *g_socket_connectable_enumerate (GSocketConnectable *connectable);
-
-GLIB_AVAILABLE_IN_ALL
-GSocketAddressEnumerator *g_socket_connectable_proxy_enumerate (GSocketConnectable *connectable);
-
-GLIB_AVAILABLE_IN_2_48
-gchar                    *g_socket_connectable_to_string (GSocketConnectable *connectable);
-
-G_END_DECLS
-
-
-#endif /* __G_SOCKET_CONNECTABLE_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
- * Copyright © 2009 Codethink Limited
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Christian Kellner <gicmo@gnome.org>
- *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
- *          Ryan Lortie <desrt@desrt.ca>
- *          Alexander Larsson <alexl@redhat.com>
- */
-
-#ifndef __G_SOCKET_CONNECTION_H__
-#define __G_SOCKET_CONNECTION_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
+#endif /* __G_SIMPLE_PROXY_RESOLVER_H__ */
 /*
  * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
  * Copyright © 2009 Codethink Limited
@@ -43107,6 +46936,312 @@ gboolean               g_socket_set_option              (GSocket                
 G_END_DECLS
 
 #endif /* __G_SOCKET_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2008, 2009 Codethink Limited
+ * Copyright © 2009 Red Hat, Inc
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_CLIENT_H__
+#define __G_SOCKET_CLIENT_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CLIENT                                (g_socket_client_get_type ())
+#define G_SOCKET_CLIENT(inst)                               (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClient))
+#define G_SOCKET_CLIENT_CLASS(class)                        (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
+#define G_IS_SOCKET_CLIENT(inst)                            (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_CLIENT))
+#define G_IS_SOCKET_CLIENT_CLASS(class)                     (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_CLIENT))
+#define G_SOCKET_CLIENT_GET_CLASS(inst)                     (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
+
+typedef struct _GSocketClientPrivate                        GSocketClientPrivate;
+typedef struct _GSocketClientClass                          GSocketClientClass;
+
+struct _GSocketClientClass
+{
+  GObjectClass parent_class;
+
+  void (* event) (GSocketClient       *client,
+		  GSocketClientEvent  event,
+		  GSocketConnectable  *connectable,
+		  GIOStream           *connection);
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+};
+
+struct _GSocketClient
+{
+  GObject parent_instance;
+  GSocketClientPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_socket_client_get_type                        (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketClient          *g_socket_client_new                             (void);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketFamily           g_socket_client_get_family                      (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_family                      (GSocketClient        *client,
+									 GSocketFamily         family);
+GLIB_AVAILABLE_IN_ALL
+GSocketType             g_socket_client_get_socket_type                 (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_socket_type                 (GSocketClient        *client,
+									 GSocketType           type);
+GLIB_AVAILABLE_IN_ALL
+GSocketProtocol         g_socket_client_get_protocol                    (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_protocol                    (GSocketClient        *client,
+									 GSocketProtocol       protocol);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress         *g_socket_client_get_local_address               (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_local_address               (GSocketClient        *client,
+									 GSocketAddress       *address);
+GLIB_AVAILABLE_IN_ALL
+guint                   g_socket_client_get_timeout                     (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_timeout                     (GSocketClient        *client,
+									 guint                 timeout);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_socket_client_get_enable_proxy                (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_enable_proxy                (GSocketClient        *client,
+    									 gboolean	      enable);
+
+GLIB_AVAILABLE_IN_2_28
+gboolean                g_socket_client_get_tls                         (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_28
+void                    g_socket_client_set_tls                         (GSocketClient        *client,
+									 gboolean              tls);
+GLIB_AVAILABLE_IN_2_28
+GTlsCertificateFlags    g_socket_client_get_tls_validation_flags        (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_28
+void                    g_socket_client_set_tls_validation_flags        (GSocketClient        *client,
+									 GTlsCertificateFlags  flags);
+GLIB_AVAILABLE_IN_2_36
+GProxyResolver         *g_socket_client_get_proxy_resolver              (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_36
+void                    g_socket_client_set_proxy_resolver              (GSocketClient        *client,
+                                                                         GProxyResolver       *proxy_resolver);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect                         (GSocketClient        *client,
+                                                                         GSocketConnectable   *connectable,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_host                 (GSocketClient        *client,
+									 const gchar          *host_and_port,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_service              (GSocketClient        *client,
+									 const gchar          *domain,
+									 const gchar          *service,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_2_26
+GSocketConnection *     g_socket_client_connect_to_uri                  (GSocketClient        *client,
+									 const gchar          *uri,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_async                   (GSocketClient        *client,
+                                                                         GSocketConnectable   *connectable,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_finish                  (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_host_async           (GSocketClient        *client,
+									 const gchar          *host_and_port,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_host_finish          (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_service_async        (GSocketClient        *client,
+									 const gchar          *domain,
+									 const gchar          *service,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_service_finish       (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_uri_async            (GSocketClient        *client,
+									 const gchar          *uri,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_uri_finish           (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void			g_socket_client_add_application_proxy		(GSocketClient        *client,
+									 const gchar          *protocol);
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_CLIENT_H___ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2008 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_SOCKET_CONNECTABLE_H__
+#define __G_SOCKET_CONNECTABLE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CONNECTABLE            (g_socket_connectable_get_type ())
+#define G_SOCKET_CONNECTABLE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectable))
+#define G_IS_SOCKET_CONNECTABLE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_SOCKET_CONNECTABLE))
+#define G_SOCKET_CONNECTABLE_GET_IFACE(obj)  (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectableIface))
+
+/**
+ * GSocketConnectable:
+ *
+ * Interface for objects that contain or generate a #GSocketAddress.
+ */
+typedef struct _GSocketConnectableIface GSocketConnectableIface;
+
+/**
+ * GSocketConnectableIface:
+ * @g_iface: The parent interface.
+ * @enumerate: Creates a #GSocketAddressEnumerator
+ * @proxy_enumerate: Creates a #GProxyAddressEnumerator
+ * @to_string: Format the connectable’s address as a string for debugging.
+ *    Implementing this is optional. (Since: 2.48)
+ *
+ * Provides an interface for returning a #GSocketAddressEnumerator
+ * and #GProxyAddressEnumerator
+ */
+struct _GSocketConnectableIface
+{
+  GTypeInterface g_iface;
+
+  /* Virtual Table */
+
+  GSocketAddressEnumerator * (* enumerate)       (GSocketConnectable *connectable);
+
+  GSocketAddressEnumerator * (* proxy_enumerate) (GSocketConnectable *connectable);
+
+  gchar                    * (* to_string)       (GSocketConnectable *connectable);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                     g_socket_connectable_get_type  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketAddressEnumerator *g_socket_connectable_enumerate (GSocketConnectable *connectable);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketAddressEnumerator *g_socket_connectable_proxy_enumerate (GSocketConnectable *connectable);
+
+GLIB_AVAILABLE_IN_2_48
+gchar                    *g_socket_connectable_to_string (GSocketConnectable *connectable);
+
+G_END_DECLS
+
+
+#endif /* __G_SOCKET_CONNECTABLE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
+ * Copyright © 2009 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Kellner <gicmo@gnome.org>
+ *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
+ *          Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_CONNECTION_H__
+#define __G_SOCKET_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
 
 G_BEGIN_DECLS
 
@@ -43502,7 +47637,7 @@ typedef struct _GSocketServiceClass                         GSocketServiceClass;
 
 /**
  * GSocketServiceClass:
- * @incomming: signal emitted when new connections are accepted
+ * @incoming: signal emitted when new connections are accepted
  *
  * Class structure for #GSocketService.
  */
@@ -43602,259 +47737,6 @@ GList       *g_srv_target_list_sort    (GList       *targets);
 G_END_DECLS
 
 #endif /* __G_SRV_TARGET_H__ */
-
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright 2010, 2013 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- */
-
-#ifndef __G_SIMPLE_PROXY_RESOLVER_H__
-#define __G_SIMPLE_PROXY_RESOLVER_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_SIMPLE_PROXY_RESOLVER         (g_simple_proxy_resolver_get_type ())
-#define G_SIMPLE_PROXY_RESOLVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolver))
-#define G_SIMPLE_PROXY_RESOLVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
-#define G_IS_SIMPLE_PROXY_RESOLVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SIMPLE_PROXY_RESOLVER))
-#define G_IS_SIMPLE_PROXY_RESOLVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_SIMPLE_PROXY_RESOLVER))
-#define G_SIMPLE_PROXY_RESOLVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
-
-/**
- * GSimpleProxyResolver:
- *
- * A #GProxyResolver implementation for using a fixed set of proxies.
- **/
-typedef struct _GSimpleProxyResolver GSimpleProxyResolver;
-typedef struct _GSimpleProxyResolverPrivate GSimpleProxyResolverPrivate;
-typedef struct _GSimpleProxyResolverClass GSimpleProxyResolverClass;
-
-struct _GSimpleProxyResolver
-{
-  GObject parent_instance;
-
-  /*< private >*/
-  GSimpleProxyResolverPrivate *priv;
-};
-
-struct _GSimpleProxyResolverClass
-{
-  GObjectClass parent_class;
-
-  /*< private >*/
-  /* Padding for future expansion */
-  void (*_g_reserved1) (void);
-  void (*_g_reserved2) (void);
-  void (*_g_reserved3) (void);
-  void (*_g_reserved4) (void);
-  void (*_g_reserved5) (void);
-};
-
-GLIB_AVAILABLE_IN_2_36
-GType           g_simple_proxy_resolver_get_type          (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_36
-GProxyResolver *g_simple_proxy_resolver_new               (const gchar           *default_proxy,
-                                                           gchar                **ignore_hosts);
-
-GLIB_AVAILABLE_IN_2_36
-void            g_simple_proxy_resolver_set_default_proxy (GSimpleProxyResolver  *resolver,
-                                                           const gchar           *default_proxy);
-
-GLIB_AVAILABLE_IN_2_36
-void            g_simple_proxy_resolver_set_ignore_hosts  (GSimpleProxyResolver  *resolver,
-                                                           gchar                **ignore_hosts);
-
-GLIB_AVAILABLE_IN_2_36
-void            g_simple_proxy_resolver_set_uri_proxy     (GSimpleProxyResolver  *resolver,
-                                                           const gchar           *uri_scheme,
-                                                           const gchar           *proxy);
-
-G_END_DECLS
-
-#endif /* __G_SIMPLE_PROXY_RESOLVER_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- *
- * Copyright 2011 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- */
-
-#ifndef __G_TASK_H__
-#define __G_TASK_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_TASK         (g_task_get_type ())
-#define G_TASK(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_TASK, GTask))
-#define G_TASK_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_TASK, GTaskClass))
-#define G_IS_TASK(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_TASK))
-#define G_IS_TASK_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_TASK))
-#define G_TASK_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_TASK, GTaskClass))
-
-typedef struct _GTaskClass   GTaskClass;
-
-GLIB_AVAILABLE_IN_2_36
-GType         g_task_get_type              (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_36
-GTask        *g_task_new                   (gpointer             source_object,
-                                            GCancellable        *cancellable,
-                                            GAsyncReadyCallback  callback,
-                                            gpointer             callback_data);
-
-GLIB_AVAILABLE_IN_2_36
-void          g_task_report_error          (gpointer             source_object,
-                                            GAsyncReadyCallback  callback,
-                                            gpointer             callback_data,
-                                            gpointer             source_tag,
-                                            GError              *error);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_report_new_error      (gpointer             source_object,
-                                            GAsyncReadyCallback  callback,
-                                            gpointer             callback_data,
-                                            gpointer             source_tag,
-                                            GQuark               domain,
-                                            gint                 code,
-                                            const char          *format,
-                                            ...) G_GNUC_PRINTF(7, 8);
-
-GLIB_AVAILABLE_IN_2_36
-void          g_task_set_task_data         (GTask               *task,
-                                            gpointer             task_data,
-                                            GDestroyNotify       task_data_destroy);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_set_priority          (GTask               *task,
-                                            gint                 priority);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_set_check_cancellable (GTask               *task,
-                                            gboolean             check_cancellable);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_set_source_tag        (GTask               *task,
-                                            gpointer             source_tag);
-GLIB_AVAILABLE_IN_2_60
-void          g_task_set_name              (GTask               *task,
-                                            const gchar         *name);
-
-GLIB_AVAILABLE_IN_2_36
-gpointer      g_task_get_source_object     (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-gpointer      g_task_get_task_data         (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-gint          g_task_get_priority          (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-GMainContext *g_task_get_context           (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-GCancellable *g_task_get_cancellable       (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_get_check_cancellable (GTask               *task);
-GLIB_AVAILABLE_IN_2_36
-gpointer      g_task_get_source_tag        (GTask               *task);
-GLIB_AVAILABLE_IN_2_60
-const gchar  *g_task_get_name              (GTask               *task);
-
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_is_valid              (gpointer             result,
-                                            gpointer             source_object);
-
-
-typedef void (*GTaskThreadFunc)           (GTask           *task,
-                                           gpointer         source_object,
-                                           gpointer         task_data,
-                                           GCancellable    *cancellable);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_run_in_thread        (GTask           *task,
-                                           GTaskThreadFunc  task_func);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_run_in_thread_sync   (GTask           *task,
-                                           GTaskThreadFunc  task_func);
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_set_return_on_cancel (GTask           *task,
-                                           gboolean         return_on_cancel);
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_get_return_on_cancel (GTask           *task);
-
-GLIB_AVAILABLE_IN_2_36
-void          g_task_attach_source        (GTask           *task,
-                                           GSource         *source,
-                                           GSourceFunc      callback);
-
-
-GLIB_AVAILABLE_IN_2_36
-void          g_task_return_pointer            (GTask           *task,
-                                                gpointer         result,
-                                                GDestroyNotify   result_destroy);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_return_boolean            (GTask           *task,
-                                                gboolean         result);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_return_int                (GTask           *task,
-                                                gssize           result);
-
-GLIB_AVAILABLE_IN_2_36
-void          g_task_return_error              (GTask           *task,
-                                                GError          *error);
-GLIB_AVAILABLE_IN_2_36
-void          g_task_return_new_error          (GTask           *task,
-                                                GQuark           domain,
-                                                gint             code,
-                                                const char      *format,
-                                                ...) G_GNUC_PRINTF (4, 5);
-
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_return_error_if_cancelled (GTask           *task);
-
-GLIB_AVAILABLE_IN_2_36
-gpointer      g_task_propagate_pointer         (GTask           *task,
-                                                GError         **error);
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_propagate_boolean         (GTask           *task,
-                                                GError         **error);
-GLIB_AVAILABLE_IN_2_36
-gssize        g_task_propagate_int             (GTask           *task,
-                                                GError         **error);
-GLIB_AVAILABLE_IN_2_36
-gboolean      g_task_had_error                 (GTask           *task);
-GLIB_AVAILABLE_IN_2_44
-gboolean      g_task_get_completed             (GTask           *task);
-
-G_END_DECLS
-
-#endif /* __G_TASK_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright (C) 2012 Colin Walters <walters@verbum.org>
@@ -44125,6 +48007,9 @@ void                    g_subprocess_launcher_take_fd                   (GSubpro
                                                                          gint                   source_fd,
                                                                          gint                   target_fd);
 
+GLIB_AVAILABLE_IN_2_68
+void                    g_subprocess_launcher_close                     (GSubprocessLauncher      *self);
+
 /* Child setup, only available on UNIX */
 GLIB_AVAILABLE_IN_2_40
 void                    g_subprocess_launcher_set_child_setup           (GSubprocessLauncher   *self,
@@ -44136,6 +48021,187 @@ void                    g_subprocess_launcher_set_child_setup           (GSubpro
 G_END_DECLS
 
 #endif /* __G_SUBPROCESS_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright 2011 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TASK_H__
+#define __G_TASK_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TASK         (g_task_get_type ())
+#define G_TASK(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_TASK, GTask))
+#define G_TASK_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_TASK, GTaskClass))
+#define G_IS_TASK(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_TASK))
+#define G_IS_TASK_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_TASK))
+#define G_TASK_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_TASK, GTaskClass))
+
+typedef struct _GTaskClass   GTaskClass;
+
+GLIB_AVAILABLE_IN_2_36
+GType         g_task_get_type              (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_36
+GTask        *g_task_new                   (gpointer             source_object,
+                                            GCancellable        *cancellable,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_report_error          (gpointer             source_object,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data,
+                                            gpointer             source_tag,
+                                            GError              *error);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_report_new_error      (gpointer             source_object,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data,
+                                            gpointer             source_tag,
+                                            GQuark               domain,
+                                            gint                 code,
+                                            const char          *format,
+                                            ...) G_GNUC_PRINTF(7, 8);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_task_data         (GTask               *task,
+                                            gpointer             task_data,
+                                            GDestroyNotify       task_data_destroy);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_priority          (GTask               *task,
+                                            gint                 priority);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_check_cancellable (GTask               *task,
+                                            gboolean             check_cancellable);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_source_tag        (GTask               *task,
+                                            gpointer             source_tag);
+GLIB_AVAILABLE_IN_2_60
+void          g_task_set_name              (GTask               *task,
+                                            const gchar         *name);
+
+/* Macro wrapper to set the task name when setting the source tag. */
+#if GLIB_VERSION_MIN_REQUIRED >= GLIB_VERSION_2_60
+#define g_task_set_source_tag(task, tag) G_STMT_START { \
+  GTask *_task = (task); \
+  (g_task_set_source_tag) (_task, tag); \
+  if (g_task_get_name (_task) == NULL) \
+    g_task_set_name (_task, G_STRINGIFY (tag)); \
+} G_STMT_END
+#endif
+
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_source_object     (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_task_data         (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gint          g_task_get_priority          (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+GMainContext *g_task_get_context           (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+GCancellable *g_task_get_cancellable       (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_get_check_cancellable (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_source_tag        (GTask               *task);
+GLIB_AVAILABLE_IN_2_60
+const gchar  *g_task_get_name              (GTask               *task);
+
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_is_valid              (gpointer             result,
+                                            gpointer             source_object);
+
+
+typedef void (*GTaskThreadFunc)           (GTask           *task,
+                                           gpointer         source_object,
+                                           gpointer         task_data,
+                                           GCancellable    *cancellable);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_run_in_thread        (GTask           *task,
+                                           GTaskThreadFunc  task_func);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_run_in_thread_sync   (GTask           *task,
+                                           GTaskThreadFunc  task_func);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_set_return_on_cancel (GTask           *task,
+                                           gboolean         return_on_cancel);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_get_return_on_cancel (GTask           *task);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_attach_source        (GTask           *task,
+                                           GSource         *source,
+                                           GSourceFunc      callback);
+
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_pointer            (GTask           *task,
+                                                gpointer         result,
+                                                GDestroyNotify   result_destroy);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_boolean            (GTask           *task,
+                                                gboolean         result);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_int                (GTask           *task,
+                                                gssize           result);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_error              (GTask           *task,
+                                                GError          *error);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_new_error          (GTask           *task,
+                                                GQuark           domain,
+                                                gint             code,
+                                                const char      *format,
+                                                ...) G_GNUC_PRINTF (4, 5);
+GLIB_AVAILABLE_IN_2_64
+void          g_task_return_value              (GTask           *task,
+                                                GValue          *result);
+
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_return_error_if_cancelled (GTask           *task);
+
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_propagate_pointer         (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_propagate_boolean         (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gssize        g_task_propagate_int             (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_64
+gboolean      g_task_propagate_value           (GTask           *task,
+                                                GValue          *value,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_had_error                 (GTask           *task);
+GLIB_AVAILABLE_IN_2_44
+gboolean      g_task_get_completed             (GTask           *task);
+
+G_END_DECLS
+
+#endif /* __G_TASK_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
  * Copyright © 2008, 2009 Codethink Limited
@@ -44674,6 +48740,11 @@ GLIB_AVAILABLE_IN_ALL
 GTlsCertificate      *g_tls_certificate_new_from_files     (const gchar         *cert_file,
 							    const gchar         *key_file,
 							    GError             **error);
+GLIB_AVAILABLE_IN_2_68
+GTlsCertificate      *g_tls_certificate_new_from_pkcs11_uris (const gchar       *pkcs11_uri,
+                                                              const gchar       *private_key_pkcs11_uri,
+                                                              GError           **error);
+
 GLIB_AVAILABLE_IN_ALL
 GList                *g_tls_certificate_list_new_from_file (const gchar         *file,
 							    GError             **error);
@@ -44785,9 +48856,16 @@ struct _GTlsConnectionClass
 				  GAsyncResult         *result,
 				  GError              **error);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  gboolean ( *get_binding_data)  (GTlsConnection          *conn,
+                                  GTlsChannelBindingType   type,
+                                  GByteArray              *data,
+                                  GError                 **error);
+G_GNUC_END_IGNORE_DEPRECATIONS
+
   /*< private >*/
   /* Padding for future expansion */
-  gpointer padding[8];
+  gpointer padding[7];
 };
 
 GLIB_AVAILABLE_IN_ALL
@@ -44828,11 +48906,13 @@ void                  g_tls_connection_set_require_close_notify    (GTlsConnecti
 GLIB_AVAILABLE_IN_ALL
 gboolean              g_tls_connection_get_require_close_notify    (GTlsConnection       *conn);
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 GLIB_DEPRECATED_IN_2_60
 void                  g_tls_connection_set_rehandshake_mode        (GTlsConnection       *conn,
 								    GTlsRehandshakeMode   mode);
 GLIB_DEPRECATED_IN_2_60
 GTlsRehandshakeMode   g_tls_connection_get_rehandshake_mode        (GTlsConnection       *conn);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 GLIB_AVAILABLE_IN_2_60
 void                  g_tls_connection_set_advertised_protocols    (GTlsConnection       *conn,
@@ -44840,6 +48920,14 @@ void                  g_tls_connection_set_advertised_protocols    (GTlsConnecti
 
 GLIB_AVAILABLE_IN_2_60
 const gchar *         g_tls_connection_get_negotiated_protocol     (GTlsConnection       *conn);
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+GLIB_AVAILABLE_IN_2_66
+gboolean              g_tls_connection_get_channel_binding_data    (GTlsConnection          *conn,
+                                                                    GTlsChannelBindingType   type,
+                                                                    GByteArray              *data,
+                                                                    GError                 **error);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 GLIB_AVAILABLE_IN_ALL
 gboolean              g_tls_connection_handshake                   (GTlsConnection       *conn,
@@ -44868,6 +48956,18 @@ gboolean              g_tls_connection_handshake_finish            (GTlsConnecti
 GLIB_AVAILABLE_IN_ALL
 GQuark g_tls_error_quark (void);
 
+/**
+ * G_TLS_CHANNEL_BINDING_ERROR:
+ *
+ * Error domain for TLS channel binding. Errors in this domain will be from the
+ * #GTlsChannelBindingError enumeration. See #GError for more information on error
+ * domains.
+ *
+ * Since: 2.66
+ */
+#define G_TLS_CHANNEL_BINDING_ERROR (g_tls_channel_binding_error_quark ())
+GLIB_AVAILABLE_IN_2_66
+GQuark g_tls_channel_binding_error_quark (void);
 
 /*< protected >*/
 GLIB_AVAILABLE_IN_ALL
@@ -45390,74 +49490,6 @@ G_END_DECLS
 #endif /* __G_TLS_INTERACTION_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
- * Copyright (C) 2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- */
-
-#ifndef __G_TLS_SERVER_CONNECTION_H__
-#define __G_TLS_SERVER_CONNECTION_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_TLS_SERVER_CONNECTION                (g_tls_server_connection_get_type ())
-#define G_TLS_SERVER_CONNECTION(inst)               (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnection))
-#define G_IS_TLS_SERVER_CONNECTION(inst)            (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_SERVER_CONNECTION))
-#define G_TLS_SERVER_CONNECTION_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnectionInterface))
-
-/**
- * GTlsServerConnection:
- *
- * TLS server-side connection. This is the server-side implementation
- * of a #GTlsConnection.
- *
- * Since: 2.28
- */
-typedef struct _GTlsServerConnectionInterface GTlsServerConnectionInterface;
-
-/**
- * GTlsServerConnectionInterface:
- * @g_iface: The parent interface.
- *
- * vtable for a #GTlsServerConnection implementation.
- *
- * Since: 2.26
- */
-struct _GTlsServerConnectionInterface
-{
-  GTypeInterface g_iface;
-
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                 g_tls_server_connection_get_type                 (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_ALL
-GIOStream *           g_tls_server_connection_new                      (GIOStream        *base_io_stream,
-									GTlsCertificate  *certificate,
-									GError          **error);
-
-G_END_DECLS
-
-#endif /* __G_TLS_SERVER_CONNECTION_H__ */
-/* GIO - GLib Input, Output and Streaming Library
- *
  * Copyright (C) 2011 Collabora, Ltd.
  *
  * This library is free software; you can redistribute it and/or
@@ -45576,6 +49608,74 @@ G_END_DECLS
 #endif /* __G_TLS_PASSWORD_H__ */
 /* GIO - GLib Input, Output and Streaming Library
  *
+ * Copyright (C) 2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_SERVER_CONNECTION_H__
+#define __G_TLS_SERVER_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_SERVER_CONNECTION                (g_tls_server_connection_get_type ())
+#define G_TLS_SERVER_CONNECTION(inst)               (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnection))
+#define G_IS_TLS_SERVER_CONNECTION(inst)            (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_SERVER_CONNECTION))
+#define G_TLS_SERVER_CONNECTION_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnectionInterface))
+
+/**
+ * GTlsServerConnection:
+ *
+ * TLS server-side connection. This is the server-side implementation
+ * of a #GTlsConnection.
+ *
+ * Since: 2.28
+ */
+typedef struct _GTlsServerConnectionInterface GTlsServerConnectionInterface;
+
+/**
+ * GTlsServerConnectionInterface:
+ * @g_iface: The parent interface.
+ *
+ * vtable for a #GTlsServerConnection implementation.
+ *
+ * Since: 2.26
+ */
+struct _GTlsServerConnectionInterface
+{
+  GTypeInterface g_iface;
+
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_tls_server_connection_get_type                 (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GIOStream *           g_tls_server_connection_new                      (GIOStream        *base_io_stream,
+									GTlsCertificate  *certificate,
+									GError          **error);
+
+G_END_DECLS
+
+#endif /* __G_TLS_SERVER_CONNECTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
  * Copyright (C) 2006-2007 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
@@ -45614,7 +49714,7 @@ G_BEGIN_DECLS
 /**
  * GVfsFileLookupFunc:
  * @vfs: a #GVfs
- * @identifier: the identifier to lookup a #GFile for. This can either
+ * @identifier: the identifier to look up a #GFile for. This can either
  *     be an URI or a parse name as returned by g_file_get_parse_name()
  * @user_data: user data passed to the function
  *
@@ -45772,7 +49872,6 @@ G_END_DECLS
 
 G_BEGIN_DECLS
 
-#ifndef G_DISABLE_DEPRECATED
 /**
  * G_VOLUME_IDENTIFIER_KIND_HAL_UDI:
  *
@@ -45780,8 +49879,7 @@ G_BEGIN_DECLS
  *
  * Deprecated: 2.58: Do not use, HAL is deprecated.
  */
-#define G_VOLUME_IDENTIFIER_KIND_HAL_UDI "hal-udi"
-#endif /* G_DISABLE_DEPRECATED */
+#define G_VOLUME_IDENTIFIER_KIND_HAL_UDI "hal-udi" GLIB_DEPRECATED_MACRO_IN_2_58
 
 /**
  * G_VOLUME_IDENTIFIER_KIND_UNIX_DEVICE:
@@ -46111,1727 +50209,6 @@ GFileInfo         *g_zlib_decompressor_get_file_info (GZlibDecompressor *decompr
 G_END_DECLS
 
 #endif /* __G_ZLIB_DECOMPRESSOR_H__ */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_INTERFACE_H__
-#define __G_DBUS_INTERFACE_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_INTERFACE         (g_dbus_interface_get_type())
-#define G_DBUS_INTERFACE(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE, GDBusInterface))
-#define G_IS_DBUS_INTERFACE(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE))
-#define G_DBUS_INTERFACE_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_INTERFACE, GDBusInterfaceIface))
-
-/**
- * GDBusInterface:
- *
- * Base type for D-Bus interfaces.
- *
- * Since: 2.30
- */
-
-typedef struct _GDBusInterfaceIface GDBusInterfaceIface;
-
-/**
- * GDBusInterfaceIface:
- * @parent_iface: The parent interface.
- * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_get_info().
- * @get_object: Gets the enclosing #GDBusObject. See g_dbus_interface_get_object().
- * @set_object: Sets the enclosing #GDBusObject. See g_dbus_interface_set_object().
- * @dup_object: Gets a reference to the enclosing #GDBusObject. See g_dbus_interface_dup_object(). Added in 2.32.
- *
- * Base type for D-Bus interfaces.
- *
- * Since: 2.30
- */
-struct _GDBusInterfaceIface
-{
-  GTypeInterface parent_iface;
-
-  /* Virtual Functions */
-  GDBusInterfaceInfo   *(*get_info)   (GDBusInterface      *interface_);
-  GDBusObject          *(*get_object) (GDBusInterface      *interface_);
-  void                  (*set_object) (GDBusInterface      *interface_,
-                                       GDBusObject         *object);
-  GDBusObject          *(*dup_object) (GDBusInterface      *interface_);
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                 g_dbus_interface_get_type         (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-GDBusInterfaceInfo   *g_dbus_interface_get_info         (GDBusInterface      *interface_);
-GLIB_AVAILABLE_IN_ALL
-GDBusObject          *g_dbus_interface_get_object       (GDBusInterface      *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                  g_dbus_interface_set_object       (GDBusInterface      *interface_,
-                                                         GDBusObject         *object);
-GLIB_AVAILABLE_IN_2_32
-GDBusObject          *g_dbus_interface_dup_object       (GDBusInterface      *interface_);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_INTERFACE_H__ */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_INTERFACE_SKELETON_H__
-#define __G_DBUS_INTERFACE_SKELETON_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_INTERFACE_SKELETON         (g_dbus_interface_skeleton_get_type ())
-#define G_DBUS_INTERFACE_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeleton))
-#define G_DBUS_INTERFACE_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
-#define G_DBUS_INTERFACE_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
-#define G_IS_DBUS_INTERFACE_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE_SKELETON))
-#define G_IS_DBUS_INTERFACE_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_INTERFACE_SKELETON))
-
-typedef struct _GDBusInterfaceSkeletonClass   GDBusInterfaceSkeletonClass;
-typedef struct _GDBusInterfaceSkeletonPrivate GDBusInterfaceSkeletonPrivate;
-
-/**
- * GDBusInterfaceSkeleton:
- *
- * The #GDBusInterfaceSkeleton structure contains private data and should
- * only be accessed using the provided API.
- *
- * Since: 2.30
- */
-struct _GDBusInterfaceSkeleton
-{
-  /*< private >*/
-  GObject parent_instance;
-  GDBusInterfaceSkeletonPrivate *priv;
-};
-
-/**
- * GDBusInterfaceSkeletonClass:
- * @parent_class: The parent class.
- * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_skeleton_get_info() for details.
- * @get_vtable: Returns a #GDBusInterfaceVTable. See g_dbus_interface_skeleton_get_vtable() for details.
- * @get_properties: Returns a #GVariant with all properties. See g_dbus_interface_skeleton_get_properties().
- * @flush: Emits outstanding changes, if any. See g_dbus_interface_skeleton_flush().
- * @g_authorize_method: Signal class handler for the #GDBusInterfaceSkeleton::g-authorize-method signal.
- *
- * Class structure for #GDBusInterfaceSkeleton.
- *
- * Since: 2.30
- */
-struct _GDBusInterfaceSkeletonClass
-{
-  GObjectClass parent_class;
-
-  /* Virtual Functions */
-  GDBusInterfaceInfo   *(*get_info)       (GDBusInterfaceSkeleton  *interface_);
-  GDBusInterfaceVTable *(*get_vtable)     (GDBusInterfaceSkeleton  *interface_);
-  GVariant             *(*get_properties) (GDBusInterfaceSkeleton  *interface_);
-  void                  (*flush)          (GDBusInterfaceSkeleton  *interface_);
-
-  /*< private >*/
-  gpointer vfunc_padding[8];
-  /*< public >*/
-
-  /* Signals */
-  gboolean (*g_authorize_method) (GDBusInterfaceSkeleton  *interface_,
-                                  GDBusMethodInvocation   *invocation);
-
-  /*< private >*/
-  gpointer signal_padding[8];
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                        g_dbus_interface_skeleton_get_type        (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-GDBusInterfaceSkeletonFlags  g_dbus_interface_skeleton_get_flags       (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                         g_dbus_interface_skeleton_set_flags       (GDBusInterfaceSkeleton      *interface_,
-                                                                        GDBusInterfaceSkeletonFlags  flags);
-GLIB_AVAILABLE_IN_ALL
-GDBusInterfaceInfo          *g_dbus_interface_skeleton_get_info        (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-GDBusInterfaceVTable        *g_dbus_interface_skeleton_get_vtable      (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-GVariant                    *g_dbus_interface_skeleton_get_properties  (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                         g_dbus_interface_skeleton_flush           (GDBusInterfaceSkeleton      *interface_);
-
-GLIB_AVAILABLE_IN_ALL
-gboolean                     g_dbus_interface_skeleton_export          (GDBusInterfaceSkeleton      *interface_,
-                                                                        GDBusConnection             *connection,
-                                                                        const gchar                 *object_path,
-                                                                        GError                     **error);
-GLIB_AVAILABLE_IN_ALL
-void                         g_dbus_interface_skeleton_unexport        (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                g_dbus_interface_skeleton_unexport_from_connection (GDBusInterfaceSkeleton      *interface_,
-                                                                        GDBusConnection             *connection);
-
-GLIB_AVAILABLE_IN_ALL
-GDBusConnection             *g_dbus_interface_skeleton_get_connection  (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-GList                       *g_dbus_interface_skeleton_get_connections (GDBusInterfaceSkeleton      *interface_);
-GLIB_AVAILABLE_IN_ALL
-gboolean                     g_dbus_interface_skeleton_has_connection  (GDBusInterfaceSkeleton      *interface_,
-                                                                        GDBusConnection             *connection);
-GLIB_AVAILABLE_IN_ALL
-const gchar                 *g_dbus_interface_skeleton_get_object_path (GDBusInterfaceSkeleton      *interface_);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_INTERFACE_SKELETON_H */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_H__
-#define __G_DBUS_OBJECT_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT         (g_dbus_object_get_type())
-#define G_DBUS_OBJECT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT, GDBusObject))
-#define G_IS_DBUS_OBJECT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT))
-#define G_DBUS_OBJECT_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT, GDBusObjectIface))
-
-typedef struct _GDBusObjectIface GDBusObjectIface;
-
-/**
- * GDBusObjectIface:
- * @parent_iface: The parent interface.
- * @get_object_path: Returns the object path. See g_dbus_object_get_object_path().
- * @get_interfaces: Returns all interfaces. See g_dbus_object_get_interfaces().
- * @get_interface: Returns an interface by name. See g_dbus_object_get_interface().
- * @interface_added: Signal handler for the #GDBusObject::interface-added signal.
- * @interface_removed: Signal handler for the #GDBusObject::interface-removed signal.
- *
- * Base object type for D-Bus objects.
- *
- * Since: 2.30
- */
-struct _GDBusObjectIface
-{
-  GTypeInterface parent_iface;
-
-  /* Virtual Functions */
-  const gchar     *(*get_object_path) (GDBusObject  *object);
-  GList           *(*get_interfaces)  (GDBusObject  *object);
-  GDBusInterface  *(*get_interface)   (GDBusObject  *object,
-                                       const gchar  *interface_name);
-
-  /* Signals */
-  void (*interface_added)   (GDBusObject     *object,
-                             GDBusInterface  *interface_);
-  void (*interface_removed) (GDBusObject     *object,
-                             GDBusInterface  *interface_);
-
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType            g_dbus_object_get_type        (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-const gchar     *g_dbus_object_get_object_path (GDBusObject  *object);
-GLIB_AVAILABLE_IN_ALL
-GList           *g_dbus_object_get_interfaces  (GDBusObject  *object);
-GLIB_AVAILABLE_IN_ALL
-GDBusInterface  *g_dbus_object_get_interface   (GDBusObject  *object,
-                                                const gchar  *interface_name);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_H__ */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_SKELETON_H__
-#define __G_DBUS_OBJECT_SKELETON_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT_SKELETON         (g_dbus_object_skeleton_get_type ())
-#define G_DBUS_OBJECT_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeleton))
-#define G_DBUS_OBJECT_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
-#define G_DBUS_OBJECT_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
-#define G_IS_DBUS_OBJECT_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_SKELETON))
-#define G_IS_DBUS_OBJECT_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_SKELETON))
-
-typedef struct _GDBusObjectSkeletonClass   GDBusObjectSkeletonClass;
-typedef struct _GDBusObjectSkeletonPrivate GDBusObjectSkeletonPrivate;
-
-/**
- * GDBusObjectSkeleton:
- *
- * The #GDBusObjectSkeleton structure contains private data and should only be
- * accessed using the provided API.
- *
- * Since: 2.30
- */
-struct _GDBusObjectSkeleton
-{
-  /*< private >*/
-  GObject parent_instance;
-  GDBusObjectSkeletonPrivate *priv;
-};
-
-/**
- * GDBusObjectSkeletonClass:
- * @parent_class: The parent class.
- * @authorize_method: Signal class handler for the #GDBusObjectSkeleton::authorize-method signal.
- *
- * Class structure for #GDBusObjectSkeleton.
- *
- * Since: 2.30
- */
-struct _GDBusObjectSkeletonClass
-{
-  GObjectClass parent_class;
-
-  /* Signals */
-  gboolean (*authorize_method) (GDBusObjectSkeleton       *object,
-                                GDBusInterfaceSkeleton    *interface_,
-                                GDBusMethodInvocation *invocation);
-
-  /*< private >*/
-  gpointer padding[8];
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                g_dbus_object_skeleton_get_type                  (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectSkeleton *g_dbus_object_skeleton_new                       (const gchar            *object_path);
-GLIB_AVAILABLE_IN_ALL
-void                 g_dbus_object_skeleton_flush                     (GDBusObjectSkeleton    *object);
-GLIB_AVAILABLE_IN_ALL
-void                 g_dbus_object_skeleton_add_interface             (GDBusObjectSkeleton    *object,
-                                                                       GDBusInterfaceSkeleton *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                 g_dbus_object_skeleton_remove_interface          (GDBusObjectSkeleton    *object,
-                                                                       GDBusInterfaceSkeleton *interface_);
-GLIB_AVAILABLE_IN_ALL
-void                 g_dbus_object_skeleton_remove_interface_by_name  (GDBusObjectSkeleton    *object,
-                                                                       const gchar            *interface_name);
-GLIB_AVAILABLE_IN_ALL
-void                 g_dbus_object_skeleton_set_object_path           (GDBusObjectSkeleton    *object,
-                                                                       const gchar            *object_path);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_SKELETON_H */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_PROXY_H__
-#define __G_DBUS_OBJECT_PROXY_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT_PROXY         (g_dbus_object_proxy_get_type ())
-#define G_DBUS_OBJECT_PROXY(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxy))
-#define G_DBUS_OBJECT_PROXY_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
-#define G_DBUS_OBJECT_PROXY_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
-#define G_IS_DBUS_OBJECT_PROXY(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_PROXY))
-#define G_IS_DBUS_OBJECT_PROXY_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_PROXY))
-
-typedef struct _GDBusObjectProxyClass   GDBusObjectProxyClass;
-typedef struct _GDBusObjectProxyPrivate GDBusObjectProxyPrivate;
-
-/**
- * GDBusObjectProxy:
- *
- * The #GDBusObjectProxy structure contains private data and should
- * only be accessed using the provided API.
- *
- * Since: 2.30
- */
-struct _GDBusObjectProxy
-{
-  /*< private >*/
-  GObject parent_instance;
-  GDBusObjectProxyPrivate *priv;
-};
-
-/**
- * GDBusObjectProxyClass:
- * @parent_class: The parent class.
- *
- * Class structure for #GDBusObjectProxy.
- *
- * Since: 2.30
- */
-struct _GDBusObjectProxyClass
-{
-  GObjectClass parent_class;
-
-  /*< private >*/
-  gpointer padding[8];
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType             g_dbus_object_proxy_get_type       (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectProxy *g_dbus_object_proxy_new            (GDBusConnection   *connection,
-                                                      const gchar       *object_path);
-GLIB_AVAILABLE_IN_ALL
-GDBusConnection  *g_dbus_object_proxy_get_connection (GDBusObjectProxy  *proxy);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_PROXY_H */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_MANAGER_H__
-#define __G_DBUS_OBJECT_MANAGER_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT_MANAGER         (g_dbus_object_manager_get_type())
-#define G_DBUS_OBJECT_MANAGER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManager))
-#define G_IS_DBUS_OBJECT_MANAGER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER))
-#define G_DBUS_OBJECT_MANAGER_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManagerIface))
-
-typedef struct _GDBusObjectManagerIface GDBusObjectManagerIface;
-
-/**
- * GDBusObjectManagerIface:
- * @parent_iface: The parent interface.
- * @get_object_path: Virtual function for g_dbus_object_manager_get_object_path().
- * @get_objects: Virtual function for g_dbus_object_manager_get_objects().
- * @get_object: Virtual function for g_dbus_object_manager_get_object().
- * @get_interface: Virtual function for g_dbus_object_manager_get_interface().
- * @object_added: Signal handler for the #GDBusObjectManager::object-added signal.
- * @object_removed: Signal handler for the #GDBusObjectManager::object-removed signal.
- * @interface_added: Signal handler for the #GDBusObjectManager::interface-added signal.
- * @interface_removed: Signal handler for the #GDBusObjectManager::interface-removed signal.
- *
- * Base type for D-Bus object managers.
- *
- * Since: 2.30
- */
-struct _GDBusObjectManagerIface
-{
-  GTypeInterface parent_iface;
-
-  /* Virtual Functions */
-  const gchar     *(*get_object_path) (GDBusObjectManager    *manager);
-  GList           *(*get_objects)     (GDBusObjectManager    *manager);
-  GDBusObject     *(*get_object)      (GDBusObjectManager    *manager,
-                                       const gchar           *object_path);
-  GDBusInterface  *(*get_interface)   (GDBusObjectManager    *manager,
-                                       const gchar           *object_path,
-                                       const gchar           *interface_name);
-
-  /* Signals */
-  void    (*object_added)                 (GDBusObjectManager   *manager,
-                                           GDBusObject          *object);
-  void    (*object_removed)               (GDBusObjectManager   *manager,
-                                           GDBusObject          *object);
-
-  void    (*interface_added)              (GDBusObjectManager   *manager,
-                                           GDBusObject          *object,
-                                           GDBusInterface       *interface_);
-  void    (*interface_removed)            (GDBusObjectManager   *manager,
-                                           GDBusObject          *object,
-                                           GDBusInterface       *interface_);
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType            g_dbus_object_manager_get_type        (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-const gchar     *g_dbus_object_manager_get_object_path (GDBusObjectManager    *manager);
-GLIB_AVAILABLE_IN_ALL
-GList           *g_dbus_object_manager_get_objects     (GDBusObjectManager    *manager);
-GLIB_AVAILABLE_IN_ALL
-GDBusObject     *g_dbus_object_manager_get_object      (GDBusObjectManager    *manager,
-                                                        const gchar           *object_path);
-GLIB_AVAILABLE_IN_ALL
-GDBusInterface  *g_dbus_object_manager_get_interface   (GDBusObjectManager    *manager,
-                                                        const gchar           *object_path,
-                                                        const gchar           *interface_name);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_MANAGER_H__ */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_MANAGER_CLIENT_H__
-#define __G_DBUS_OBJECT_MANAGER_CLIENT_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT_MANAGER_CLIENT         (g_dbus_object_manager_client_get_type ())
-#define G_DBUS_OBJECT_MANAGER_CLIENT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClient))
-#define G_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
-#define G_DBUS_OBJECT_MANAGER_CLIENT_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
-#define G_IS_DBUS_OBJECT_MANAGER_CLIENT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
-#define G_IS_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
-
-typedef struct _GDBusObjectManagerClientClass   GDBusObjectManagerClientClass;
-typedef struct _GDBusObjectManagerClientPrivate GDBusObjectManagerClientPrivate;
-
-/**
- * GDBusObjectManagerClient:
-  *
- * The #GDBusObjectManagerClient structure contains private data and should
- * only be accessed using the provided API.
- *
- * Since: 2.30
- */
-struct _GDBusObjectManagerClient
-{
-  /*< private >*/
-  GObject parent_instance;
-  GDBusObjectManagerClientPrivate *priv;
-};
-
-/**
- * GDBusObjectManagerClientClass:
- * @parent_class: The parent class.
- * @interface_proxy_signal: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-signal signal.
- * @interface_proxy_properties_changed: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-properties-changed signal.
- *
- * Class structure for #GDBusObjectManagerClient.
- *
- * Since: 2.30
- */
-struct _GDBusObjectManagerClientClass
-{
-  GObjectClass parent_class;
-
-  /* signals */
-  void    (*interface_proxy_signal)             (GDBusObjectManagerClient *manager,
-                                                 GDBusObjectProxy         *object_proxy,
-                                                 GDBusProxy               *interface_proxy,
-                                                 const gchar              *sender_name,
-                                                 const gchar              *signal_name,
-                                                 GVariant                 *parameters);
-
-  void    (*interface_proxy_properties_changed) (GDBusObjectManagerClient   *manager,
-                                                 GDBusObjectProxy           *object_proxy,
-                                                 GDBusProxy                 *interface_proxy,
-                                                 GVariant                   *changed_properties,
-                                                 const gchar* const         *invalidated_properties);
-
-  /*< private >*/
-  gpointer padding[8];
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                         g_dbus_object_manager_client_get_type           (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-void                          g_dbus_object_manager_client_new                (GDBusConnection               *connection,
-                                                                               GDBusObjectManagerClientFlags  flags,
-                                                                               const gchar                   *name,
-                                                                               const gchar                   *object_path,
-                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
-                                                                               gpointer                       get_proxy_type_user_data,
-                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
-                                                                               GCancellable                  *cancellable,
-                                                                               GAsyncReadyCallback            callback,
-                                                                               gpointer                       user_data);
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManager           *g_dbus_object_manager_client_new_finish         (GAsyncResult                  *res,
-                                                                               GError                       **error);
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManager           *g_dbus_object_manager_client_new_sync           (GDBusConnection               *connection,
-                                                                               GDBusObjectManagerClientFlags  flags,
-                                                                               const gchar                   *name,
-                                                                               const gchar                   *object_path,
-                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
-                                                                               gpointer                       get_proxy_type_user_data,
-                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
-                                                                               GCancellable                  *cancellable,
-                                                                               GError                       **error);
-GLIB_AVAILABLE_IN_ALL
-void                          g_dbus_object_manager_client_new_for_bus        (GBusType                       bus_type,
-                                                                               GDBusObjectManagerClientFlags  flags,
-                                                                               const gchar                   *name,
-                                                                               const gchar                   *object_path,
-                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
-                                                                               gpointer                       get_proxy_type_user_data,
-                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
-                                                                               GCancellable                  *cancellable,
-                                                                               GAsyncReadyCallback            callback,
-                                                                               gpointer                       user_data);
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_finish (GAsyncResult                  *res,
-                                                                               GError                       **error);
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_sync   (GBusType                       bus_type,
-                                                                               GDBusObjectManagerClientFlags  flags,
-                                                                               const gchar                   *name,
-                                                                               const gchar                   *object_path,
-                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
-                                                                               gpointer                       get_proxy_type_user_data,
-                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
-                                                                               GCancellable                  *cancellable,
-                                                                               GError                       **error);
-GLIB_AVAILABLE_IN_ALL
-GDBusConnection              *g_dbus_object_manager_client_get_connection     (GDBusObjectManagerClient      *manager);
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManagerClientFlags g_dbus_object_manager_client_get_flags          (GDBusObjectManagerClient      *manager);
-GLIB_AVAILABLE_IN_ALL
-const gchar                  *g_dbus_object_manager_client_get_name           (GDBusObjectManagerClient      *manager);
-GLIB_AVAILABLE_IN_ALL
-gchar                        *g_dbus_object_manager_client_get_name_owner     (GDBusObjectManagerClient      *manager);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_MANAGER_CLIENT_H */
-/* GDBus - GLib D-Bus Library
- *
- * Copyright (C) 2008-2010 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: David Zeuthen <davidz@redhat.com>
- */
-
-#ifndef __G_DBUS_OBJECT_MANAGER_SERVER_H__
-#define __G_DBUS_OBJECT_MANAGER_SERVER_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_OBJECT_MANAGER_SERVER         (g_dbus_object_manager_server_get_type ())
-#define G_DBUS_OBJECT_MANAGER_SERVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServer))
-#define G_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
-#define G_DBUS_OBJECT_MANAGER_SERVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
-#define G_IS_DBUS_OBJECT_MANAGER_SERVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
-#define G_IS_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
-
-typedef struct _GDBusObjectManagerServerClass   GDBusObjectManagerServerClass;
-typedef struct _GDBusObjectManagerServerPrivate GDBusObjectManagerServerPrivate;
-
-/**
- * GDBusObjectManagerServer:
- *
- * The #GDBusObjectManagerServer structure contains private data and should
- * only be accessed using the provided API.
- *
- * Since: 2.30
- */
-struct _GDBusObjectManagerServer
-{
-  /*< private >*/
-  GObject parent_instance;
-  GDBusObjectManagerServerPrivate *priv;
-};
-
-/**
- * GDBusObjectManagerServerClass:
- * @parent_class: The parent class.
- *
- * Class structure for #GDBusObjectManagerServer.
- *
- * Since: 2.30
- */
-struct _GDBusObjectManagerServerClass
-{
-  GObjectClass parent_class;
-
-  /*< private >*/
-  gpointer padding[8];
-};
-
-GLIB_AVAILABLE_IN_ALL
-GType                     g_dbus_object_manager_server_get_type            (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_ALL
-GDBusObjectManagerServer *g_dbus_object_manager_server_new                 (const gchar               *object_path);
-GLIB_AVAILABLE_IN_ALL
-GDBusConnection          *g_dbus_object_manager_server_get_connection      (GDBusObjectManagerServer  *manager);
-GLIB_AVAILABLE_IN_ALL
-void                      g_dbus_object_manager_server_set_connection      (GDBusObjectManagerServer  *manager,
-                                                                            GDBusConnection           *connection);
-GLIB_AVAILABLE_IN_ALL
-void                      g_dbus_object_manager_server_export              (GDBusObjectManagerServer  *manager,
-                                                                            GDBusObjectSkeleton       *object);
-GLIB_AVAILABLE_IN_ALL
-void                      g_dbus_object_manager_server_export_uniquely     (GDBusObjectManagerServer  *manager,
-                                                                            GDBusObjectSkeleton       *object);
-GLIB_AVAILABLE_IN_ALL
-gboolean                  g_dbus_object_manager_server_is_exported         (GDBusObjectManagerServer  *manager,
-                                                                            GDBusObjectSkeleton       *object);
-GLIB_AVAILABLE_IN_ALL
-gboolean                  g_dbus_object_manager_server_unexport            (GDBusObjectManagerServer  *manager,
-                                                                            const gchar               *object_path);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_OBJECT_MANAGER_SERVER_H */
-/*
- * Copyright © 2010 Codethink Limited
- * Copyright © 2011 Canonical Limited
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_DBUS_ACTION_GROUP_H__
-#define __G_DBUS_ACTION_GROUP_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_ACTION_GROUP                            (g_dbus_action_group_get_type ())
-#define G_DBUS_ACTION_GROUP(inst)                           (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroup))
-#define G_DBUS_ACTION_GROUP_CLASS(class)                    (G_TYPE_CHECK_CLASS_CAST ((class),                       \
-                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
-#define G_IS_DBUS_ACTION_GROUP(inst)                        (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
-                                                             G_TYPE_DBUS_ACTION_GROUP))
-#define G_IS_DBUS_ACTION_GROUP_CLASS(class)                 (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
-                                                             G_TYPE_DBUS_ACTION_GROUP))
-#define G_DBUS_ACTION_GROUP_GET_CLASS(inst)                 (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
-                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
-
-GLIB_AVAILABLE_IN_ALL
-GType                   g_dbus_action_group_get_type                  (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_32
-GDBusActionGroup *      g_dbus_action_group_get                       (GDBusConnection        *connection,
-                                                                       const gchar            *bus_name,
-                                                                       const gchar            *object_path);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_ACTION_GROUP_H__ */
-/*
- * Copyright © 2011 Canonical Limited
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_REMOTE_ACTION_GROUP_H__
-#define __G_REMOTE_ACTION_GROUP_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-
-#define G_TYPE_REMOTE_ACTION_GROUP                          (g_remote_action_group_get_type ())
-#define G_REMOTE_ACTION_GROUP(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                      \
-                                                             G_TYPE_REMOTE_ACTION_GROUP, GRemoteActionGroup))
-#define G_IS_REMOTE_ACTION_GROUP(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                      \
-                                                             G_TYPE_REMOTE_ACTION_GROUP))
-#define G_REMOTE_ACTION_GROUP_GET_IFACE(inst)               (G_TYPE_INSTANCE_GET_INTERFACE ((inst),                   \
-                                                             G_TYPE_REMOTE_ACTION_GROUP,                              \
-                                                             GRemoteActionGroupInterface))
-
-typedef struct _GRemoteActionGroupInterface                 GRemoteActionGroupInterface;
-
-struct _GRemoteActionGroupInterface
-{
-  GTypeInterface g_iface;
-
-  void (* activate_action_full)     (GRemoteActionGroup *remote,
-                                     const gchar        *action_name,
-                                     GVariant           *parameter,
-                                     GVariant           *platform_data);
-
-  void (* change_action_state_full) (GRemoteActionGroup *remote,
-                                     const gchar        *action_name,
-                                     GVariant           *value,
-                                     GVariant           *platform_data);
-};
-
-GLIB_AVAILABLE_IN_2_32
-GType                   g_remote_action_group_get_type                  (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_32
-void                    g_remote_action_group_activate_action_full      (GRemoteActionGroup *remote,
-                                                                         const gchar        *action_name,
-                                                                         GVariant           *parameter,
-                                                                         GVariant           *platform_data);
-
-GLIB_AVAILABLE_IN_2_32
-void                    g_remote_action_group_change_action_state_full  (GRemoteActionGroup *remote,
-                                                                         const gchar        *action_name,
-                                                                         GVariant           *value,
-                                                                         GVariant           *platform_data);
-
-G_END_DECLS
-
-#endif /* __G_REMOTE_ACTION_GROUP_H__ */
-/*
- * Copyright © 2011 Canonical Ltd.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_MENU_MODEL_H__
-#define __G_MENU_MODEL_H__
-
-
-
-G_BEGIN_DECLS
-
-/**
- * G_MENU_ATTRIBUTE_ACTION:
- *
- * The menu item attribute which holds the action name of the item.  Action
- * names are namespaced with an identifier for the action group in which the
- * action resides. For example, "win." for window-specific actions and "app."
- * for application-wide actions.
- *
- * See also g_menu_model_get_item_attribute() and g_menu_item_set_attribute().
- *
- * Since: 2.32
- **/
-#define G_MENU_ATTRIBUTE_ACTION "action"
-
-/**
- * G_MENU_ATTRIBUTE_ACTION_NAMESPACE:
- *
- * The menu item attribute that holds the namespace for all action names in
- * menus that are linked from this item.
- *
- * Since: 2.36
- **/
-#define G_MENU_ATTRIBUTE_ACTION_NAMESPACE "action-namespace"
-
-/**
- * G_MENU_ATTRIBUTE_TARGET:
- *
- * The menu item attribute which holds the target with which the item's action
- * will be activated.
- *
- * See also g_menu_item_set_action_and_target()
- *
- * Since: 2.32
- **/
-#define G_MENU_ATTRIBUTE_TARGET "target"
-
-/**
- * G_MENU_ATTRIBUTE_LABEL:
- *
- * The menu item attribute which holds the label of the item.
- *
- * Since: 2.32
- **/
-#define G_MENU_ATTRIBUTE_LABEL "label"
-
-/**
- * G_MENU_ATTRIBUTE_ICON:
- *
- * The menu item attribute which holds the icon of the item.
- *
- * The icon is stored in the format returned by g_icon_serialize().
- *
- * This attribute is intended only to represent 'noun' icons such as
- * favicons for a webpage, or application icons.  It should not be used
- * for 'verbs' (ie: stock icons).
- *
- * Since: 2.38
- **/
-#define G_MENU_ATTRIBUTE_ICON "icon"
-
-/**
- * G_MENU_LINK_SUBMENU:
- *
- * The name of the link that associates a menu item with a submenu.
- *
- * See also g_menu_item_set_link().
- *
- * Since: 2.32
- **/
-#define G_MENU_LINK_SUBMENU "submenu"
-
-/**
- * G_MENU_LINK_SECTION:
- *
- * The name of the link that associates a menu item with a section.  The linked
- * menu will usually be shown in place of the menu item, using the item's label
- * as a header.
- *
- * See also g_menu_item_set_link().
- *
- * Since: 2.32
- **/
-#define G_MENU_LINK_SECTION "section"
-
-#define G_TYPE_MENU_MODEL                                   (g_menu_model_get_type ())
-#define G_MENU_MODEL(inst)                                  (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                             G_TYPE_MENU_MODEL, GMenuModel))
-#define G_MENU_MODEL_CLASS(class)                           (G_TYPE_CHECK_CLASS_CAST ((class),                       \
-                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
-#define G_IS_MENU_MODEL(inst)                               (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
-                                                             G_TYPE_MENU_MODEL))
-#define G_IS_MENU_MODEL_CLASS(class)                        (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
-                                                             G_TYPE_MENU_MODEL))
-#define G_MENU_MODEL_GET_CLASS(inst)                        (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
-                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
-
-typedef struct _GMenuModelPrivate                           GMenuModelPrivate;
-typedef struct _GMenuModelClass                             GMenuModelClass;
-
-typedef struct _GMenuAttributeIterPrivate                   GMenuAttributeIterPrivate;
-typedef struct _GMenuAttributeIterClass                     GMenuAttributeIterClass;
-typedef struct _GMenuAttributeIter                          GMenuAttributeIter;
-
-typedef struct _GMenuLinkIterPrivate                        GMenuLinkIterPrivate;
-typedef struct _GMenuLinkIterClass                          GMenuLinkIterClass;
-typedef struct _GMenuLinkIter                               GMenuLinkIter;
-
-struct _GMenuModel
-{
-  GObject            parent_instance;
-  GMenuModelPrivate *priv;
-};
-
-/**
- * GMenuModelClass::get_item_attributes:
- * @model: the #GMenuModel to query
- * @item_index: The #GMenuItem to query
- * @attributes: (out) (element-type utf8 GLib.Variant): Attributes on the item
- *
- * Gets all the attributes associated with the item in the menu model.
- */
-/**
- * GMenuModelClass::get_item_links:
- * @model: the #GMenuModel to query
- * @item_index: The #GMenuItem to query
- * @links: (out) (element-type utf8 Gio.MenuModel): Links from the item
- *
- * Gets all the links associated with the item in the menu model.
- */
-struct _GMenuModelClass
-{
-  GObjectClass parent_class;
-
-  gboolean              (*is_mutable)                       (GMenuModel          *model);
-  gint                  (*get_n_items)                      (GMenuModel          *model);
-  void                  (*get_item_attributes)              (GMenuModel          *model,
-                                                             gint                 item_index,
-                                                             GHashTable         **attributes);
-  GMenuAttributeIter *  (*iterate_item_attributes)          (GMenuModel          *model,
-                                                             gint                 item_index);
-  GVariant *            (*get_item_attribute_value)         (GMenuModel          *model,
-                                                             gint                 item_index,
-                                                             const gchar         *attribute,
-                                                             const GVariantType  *expected_type);
-  void                  (*get_item_links)                   (GMenuModel          *model,
-                                                             gint                 item_index,
-                                                             GHashTable         **links);
-  GMenuLinkIter *       (*iterate_item_links)               (GMenuModel          *model,
-                                                             gint                 item_index);
-  GMenuModel *          (*get_item_link)                    (GMenuModel          *model,
-                                                             gint                 item_index,
-                                                             const gchar         *link);
-};
-
-GLIB_AVAILABLE_IN_2_32
-GType                   g_menu_model_get_type                           (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_model_is_mutable                         (GMenuModel         *model);
-GLIB_AVAILABLE_IN_2_32
-gint                    g_menu_model_get_n_items                        (GMenuModel         *model);
-
-GLIB_AVAILABLE_IN_2_32
-GMenuAttributeIter *    g_menu_model_iterate_item_attributes            (GMenuModel         *model,
-                                                                         gint                item_index);
-GLIB_AVAILABLE_IN_2_32
-GVariant *              g_menu_model_get_item_attribute_value           (GMenuModel         *model,
-                                                                         gint                item_index,
-                                                                         const gchar        *attribute,
-                                                                         const GVariantType *expected_type);
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_model_get_item_attribute                 (GMenuModel         *model,
-                                                                         gint                item_index,
-                                                                         const gchar        *attribute,
-                                                                         const gchar        *format_string,
-                                                                         ...);
-GLIB_AVAILABLE_IN_2_32
-GMenuLinkIter *         g_menu_model_iterate_item_links                 (GMenuModel         *model,
-                                                                         gint                item_index);
-GLIB_AVAILABLE_IN_2_32
-GMenuModel *            g_menu_model_get_item_link                      (GMenuModel         *model,
-                                                                         gint                item_index,
-                                                                         const gchar        *link);
-
-GLIB_AVAILABLE_IN_2_32
-void                    g_menu_model_items_changed                      (GMenuModel         *model,
-                                                                         gint                position,
-                                                                         gint                removed,
-                                                                         gint                added);
-
-
-#define G_TYPE_MENU_ATTRIBUTE_ITER                          (g_menu_attribute_iter_get_type ())
-#define G_MENU_ATTRIBUTE_ITER(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIter))
-#define G_MENU_ATTRIBUTE_ITER_CLASS(class)                  (G_TYPE_CHECK_CLASS_CAST ((class),                       \
-                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
-#define G_IS_MENU_ATTRIBUTE_ITER(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
-                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
-#define G_IS_MENU_ATTRIBUTE_ITER_CLASS(class)               (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
-                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
-#define G_MENU_ATTRIBUTE_ITER_GET_CLASS(inst)               (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
-                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
-
-struct _GMenuAttributeIter
-{
-  GObject parent_instance;
-  GMenuAttributeIterPrivate *priv;
-};
-
-struct _GMenuAttributeIterClass
-{
-  GObjectClass parent_class;
-
-  gboolean      (*get_next) (GMenuAttributeIter  *iter,
-                             const gchar        **out_name,
-                             GVariant           **value);
-};
-
-GLIB_AVAILABLE_IN_2_32
-GType                   g_menu_attribute_iter_get_type                  (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_attribute_iter_get_next                  (GMenuAttributeIter  *iter,
-                                                                         const gchar        **out_name,
-                                                                         GVariant           **value);
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_attribute_iter_next                      (GMenuAttributeIter  *iter);
-GLIB_AVAILABLE_IN_2_32
-const gchar *           g_menu_attribute_iter_get_name                  (GMenuAttributeIter  *iter);
-GLIB_AVAILABLE_IN_2_32
-GVariant *              g_menu_attribute_iter_get_value                 (GMenuAttributeIter  *iter);
-
-
-#define G_TYPE_MENU_LINK_ITER                               (g_menu_link_iter_get_type ())
-#define G_MENU_LINK_ITER(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIter))
-#define G_MENU_LINK_ITER_CLASS(class)                       (G_TYPE_CHECK_CLASS_CAST ((class),                       \
-                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
-#define G_IS_MENU_LINK_ITER(inst)                           (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
-                                                             G_TYPE_MENU_LINK_ITER))
-#define G_IS_MENU_LINK_ITER_CLASS(class)                    (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
-                                                             G_TYPE_MENU_LINK_ITER))
-#define G_MENU_LINK_ITER_GET_CLASS(inst)                    (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
-                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
-
-struct _GMenuLinkIter
-{
-  GObject parent_instance;
-  GMenuLinkIterPrivate *priv;
-};
-
-struct _GMenuLinkIterClass
-{
-  GObjectClass parent_class;
-
-  gboolean      (*get_next) (GMenuLinkIter  *iter,
-                             const gchar   **out_link,
-                             GMenuModel    **value);
-};
-
-GLIB_AVAILABLE_IN_2_32
-GType                   g_menu_link_iter_get_type                       (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_link_iter_get_next                       (GMenuLinkIter  *iter,
-                                                                         const gchar   **out_link,
-                                                                         GMenuModel    **value);
-GLIB_AVAILABLE_IN_2_32
-gboolean                g_menu_link_iter_next                           (GMenuLinkIter  *iter);
-GLIB_AVAILABLE_IN_2_32
-const gchar *           g_menu_link_iter_get_name                       (GMenuLinkIter  *iter);
-GLIB_AVAILABLE_IN_2_32
-GMenuModel *            g_menu_link_iter_get_value                      (GMenuLinkIter  *iter);
-
-G_END_DECLS
-
-#endif /* __G_MENU_MODEL_H__ */
-/*
- * Copyright © 2011 Canonical Ltd.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_MENU_H__
-#define __G_MENU_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_MENU          (g_menu_get_type ())
-#define G_MENU(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
-                              G_TYPE_MENU, GMenu))
-#define G_IS_MENU(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
-                              G_TYPE_MENU))
-
-#define G_TYPE_MENU_ITEM     (g_menu_item_get_type ())
-#define G_MENU_ITEM(inst)    (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
-                              G_TYPE_MENU_ITEM, GMenuItem))
-#define G_IS_MENU_ITEM(inst) (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
-                              G_TYPE_MENU_ITEM))
-
-typedef struct _GMenuItem GMenuItem;
-typedef struct _GMenu     GMenu;
-
-GLIB_AVAILABLE_IN_2_32
-GType       g_menu_get_type                         (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_2_32
-GMenu *     g_menu_new                              (void);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_freeze                           (GMenu       *menu);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_insert_item                      (GMenu       *menu,
-                                                     gint         position,
-                                                     GMenuItem   *item);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_prepend_item                     (GMenu       *menu,
-                                                     GMenuItem   *item);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_append_item                      (GMenu       *menu,
-                                                     GMenuItem   *item);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_remove                           (GMenu       *menu,
-                                                     gint         position);
-
-GLIB_AVAILABLE_IN_2_38
-void        g_menu_remove_all                       (GMenu       *menu);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_insert                           (GMenu       *menu,
-                                                     gint         position,
-                                                     const gchar *label,
-                                                     const gchar *detailed_action);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_prepend                          (GMenu       *menu,
-                                                     const gchar *label,
-                                                     const gchar *detailed_action);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_append                           (GMenu       *menu,
-                                                     const gchar *label,
-                                                     const gchar *detailed_action);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_insert_section                   (GMenu       *menu,
-                                                     gint         position,
-                                                     const gchar *label,
-                                                     GMenuModel  *section);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_prepend_section                  (GMenu       *menu,
-                                                     const gchar *label,
-                                                     GMenuModel  *section);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_append_section                   (GMenu       *menu,
-                                                     const gchar *label,
-                                                     GMenuModel  *section);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_insert_submenu                   (GMenu       *menu,
-                                                     gint        position,
-                                                     const gchar *label,
-                                                     GMenuModel  *submenu);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_prepend_submenu                  (GMenu       *menu,
-                                                     const gchar *label,
-                                                     GMenuModel  *submenu);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_append_submenu                   (GMenu       *menu,
-                                                     const gchar *label,
-                                                     GMenuModel  *submenu);
-
-
-GLIB_AVAILABLE_IN_2_32
-GType       g_menu_item_get_type                    (void) G_GNUC_CONST;
-GLIB_AVAILABLE_IN_2_32
-GMenuItem * g_menu_item_new                         (const gchar *label,
-                                                     const gchar *detailed_action);
-
-GLIB_AVAILABLE_IN_2_34
-GMenuItem * g_menu_item_new_from_model              (GMenuModel  *model,
-                                                     gint         item_index);
-
-GLIB_AVAILABLE_IN_2_32
-GMenuItem * g_menu_item_new_submenu                 (const gchar *label,
-                                                     GMenuModel  *submenu);
-
-GLIB_AVAILABLE_IN_2_32
-GMenuItem * g_menu_item_new_section                 (const gchar *label,
-                                                     GMenuModel  *section);
-
-GLIB_AVAILABLE_IN_2_34
-GVariant *  g_menu_item_get_attribute_value         (GMenuItem   *menu_item,
-                                                     const gchar *attribute,
-                                                     const GVariantType *expected_type);
-GLIB_AVAILABLE_IN_2_34
-gboolean    g_menu_item_get_attribute               (GMenuItem   *menu_item,
-                                                     const gchar *attribute,
-                                                     const gchar *format_string,
-                                                     ...);
-GLIB_AVAILABLE_IN_2_34
-GMenuModel *g_menu_item_get_link                    (GMenuItem   *menu_item,
-                                                     const gchar *link);
-
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_attribute_value         (GMenuItem   *menu_item,
-                                                     const gchar *attribute,
-                                                     GVariant    *value);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_attribute               (GMenuItem   *menu_item,
-                                                     const gchar *attribute,
-                                                     const gchar *format_string,
-                                                     ...);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_link                    (GMenuItem   *menu_item,
-                                                     const gchar *link,
-                                                     GMenuModel  *model);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_label                   (GMenuItem   *menu_item,
-                                                     const gchar *label);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_submenu                 (GMenuItem   *menu_item,
-                                                     GMenuModel  *submenu);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_section                 (GMenuItem   *menu_item,
-                                                     GMenuModel  *section);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_action_and_target_value (GMenuItem   *menu_item,
-                                                     const gchar *action,
-                                                     GVariant    *target_value);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_action_and_target       (GMenuItem   *menu_item,
-                                                     const gchar *action,
-                                                     const gchar *format_string,
-                                                     ...);
-GLIB_AVAILABLE_IN_2_32
-void        g_menu_item_set_detailed_action         (GMenuItem   *menu_item,
-                                                     const gchar *detailed_action);
-
-GLIB_AVAILABLE_IN_2_38
-void        g_menu_item_set_icon                    (GMenuItem   *menu_item,
-                                                     GIcon       *icon);
-
-G_END_DECLS
-
-#endif /* __G_MENU_H__ */
-/*
- * Copyright © 2011 Canonical Ltd.
- *
- *  This library is free software; you can redistribute it and/or
- *  modify it under the terms of the GNU Lesser General Public
- *  License as published by the Free Software Foundation; either
- *  version 2.1 of the License, or (at your option) any later version.
- *
- *  This library is distributed in the hope that it will be useful, but
- *  WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- *  Lesser General Public License for more details.
- *
- *  You should have received a copy of the GNU Lesser General Public
- *  License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_MENU_EXPORTER_H__
-#define __G_MENU_EXPORTER_H__
-
-
-G_BEGIN_DECLS
-
-GLIB_AVAILABLE_IN_2_32
-guint                   g_dbus_connection_export_menu_model             (GDBusConnection  *connection,
-                                                                         const gchar      *object_path,
-                                                                         GMenuModel       *menu,
-                                                                         GError          **error);
-
-GLIB_AVAILABLE_IN_2_32
-void                    g_dbus_connection_unexport_menu_model           (GDBusConnection  *connection,
-                                                                         guint             export_id);
-
-G_END_DECLS
-
-#endif /* __G_MENU_EXPORTER_H__ */
-/*
- * Copyright © 2011 Canonical Ltd.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_DBUS_MENU_MODEL_H__
-#define __G_DBUS_MENU_MODEL_H__
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_DBUS_MENU_MODEL          (g_dbus_menu_model_get_type ())
-#define G_DBUS_MENU_MODEL(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst),   \
-                                         G_TYPE_DBUS_MENU_MODEL, GDBusMenuModel))
-#define G_IS_DBUS_MENU_MODEL(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),   \
-                                         G_TYPE_DBUS_MENU_MODEL))
-
-typedef struct _GDBusMenuModel GDBusMenuModel;
-
-GLIB_AVAILABLE_IN_ALL
-GType                   g_dbus_menu_model_get_type     (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_ALL
-GDBusMenuModel *        g_dbus_menu_model_get          (GDBusConnection *connection,
-                                                        const gchar     *bus_name,
-                                                        const gchar     *object_path);
-
-G_END_DECLS
-
-#endif /* __G_DBUS_MENU_MODEL_H__ */
-/*
- * Copyright © 2013 Lars Uebernickel
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors: Lars Uebernickel <lars@uebernic.de>
- */
-
-#ifndef __G_NOTIFICATION_H__
-#define __G_NOTIFICATION_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_NOTIFICATION         (g_notification_get_type ())
-#define G_NOTIFICATION(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_NOTIFICATION, GNotification))
-#define G_IS_NOTIFICATION(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_NOTIFICATION))
-
-GLIB_AVAILABLE_IN_2_40
-GType                   g_notification_get_type                         (void) G_GNUC_CONST;
-
-GLIB_AVAILABLE_IN_2_40
-GNotification *         g_notification_new                              (const gchar *title);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_set_title                        (GNotification *notification,
-                                                                         const gchar   *title);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_set_body                         (GNotification *notification,
-                                                                         const gchar   *body);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_set_icon                         (GNotification *notification,
-                                                                         GIcon         *icon);
-
-GLIB_DEPRECATED_IN_2_42_FOR(g_notification_set_priority)
-void                    g_notification_set_urgent                       (GNotification *notification,
-                                                                         gboolean       urgent);
-
-GLIB_AVAILABLE_IN_2_42
-void                    g_notification_set_priority                     (GNotification         *notification,
-                                                                         GNotificationPriority  priority);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_add_button                       (GNotification *notification,
-                                                                         const gchar   *label,
-                                                                         const gchar   *detailed_action);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_add_button_with_target           (GNotification *notification,
-                                                                         const gchar   *label,
-                                                                         const gchar   *action,
-                                                                         const gchar   *target_format,
-                                                                         ...);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_add_button_with_target_value     (GNotification *notification,
-                                                                         const gchar   *label,
-                                                                         const gchar   *action,
-                                                                         GVariant      *target);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_set_default_action               (GNotification *notification,
-                                                                         const gchar   *detailed_action);
-
-GLIB_AVAILABLE_IN_2_40
-void                    g_notification_set_default_action_and_target    (GNotification *notification,
-                                                                         const gchar   *action,
-                                                                         const gchar   *target_format,
-                                                                         ...);
-
-GLIB_AVAILABLE_IN_2_40
-void                 g_notification_set_default_action_and_target_value (GNotification *notification,
-                                                                         const gchar   *action,
-                                                                         GVariant      *target);
-
-G_END_DECLS
-
-#endif
-/*
- * Copyright 2015 Lars Uebernickel
- * Copyright 2015 Ryan Lortie
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors:
- *     Lars Uebernickel <lars@uebernic.de>
- *     Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_LIST_MODEL_H__
-#define __G_LIST_MODEL_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_LIST_MODEL g_list_model_get_type ()
-GLIB_AVAILABLE_IN_2_44
-G_DECLARE_INTERFACE(GListModel, g_list_model, G, LIST_MODEL, GObject)
-
-struct _GListModelInterface
-{
-  GTypeInterface g_iface;
-
-  GType     (* get_item_type)   (GListModel *list);
-
-  guint     (* get_n_items)     (GListModel *list);
-
-  gpointer  (* get_item)        (GListModel *list,
-                                 guint       position);
-};
-
-GLIB_AVAILABLE_IN_2_44
-GType                   g_list_model_get_item_type                      (GListModel *list);
-
-GLIB_AVAILABLE_IN_2_44
-guint                   g_list_model_get_n_items                        (GListModel *list);
-
-GLIB_AVAILABLE_IN_2_44
-gpointer                g_list_model_get_item                           (GListModel *list,
-                                                                         guint       position);
-
-GLIB_AVAILABLE_IN_2_44
-GObject *               g_list_model_get_object                         (GListModel *list,
-                                                                         guint       position);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_model_items_changed                      (GListModel *list,
-                                                                         guint       position,
-                                                                         guint       removed,
-                                                                         guint       added);
-
-G_END_DECLS
-
-#endif /* __G_LIST_MODEL_H__ */
-/*
- * Copyright 2015 Lars Uebernickel
- * Copyright 2015 Ryan Lortie
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
- * Authors:
- *     Lars Uebernickel <lars@uebernic.de>
- *     Ryan Lortie <desrt@desrt.ca>
- */
-
-#ifndef __G_LIST_STORE_H__
-#define __G_LIST_STORE_H__
-
-#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
-#error "Only <gio/gio.h> can be included directly."
-#endif
-
-
-G_BEGIN_DECLS
-
-#define G_TYPE_LIST_STORE (g_list_store_get_type ())
-GLIB_AVAILABLE_IN_2_44
-G_DECLARE_FINAL_TYPE(GListStore, g_list_store, G, LIST_STORE, GObject)
-
-GLIB_AVAILABLE_IN_2_44
-GListStore *            g_list_store_new                                (GType       item_type);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_store_insert                             (GListStore *store,
-                                                                         guint       position,
-                                                                         gpointer    item);
-
-GLIB_AVAILABLE_IN_2_44
-guint                   g_list_store_insert_sorted                      (GListStore       *store,
-                                                                         gpointer          item,
-                                                                         GCompareDataFunc  compare_func,
-                                                                         gpointer          user_data);
-
-GLIB_AVAILABLE_IN_2_46
-void                   g_list_store_sort                                (GListStore       *store,
-                                                                         GCompareDataFunc  compare_func,
-                                                                         gpointer          user_data);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_store_append                             (GListStore *store,
-                                                                         gpointer    item);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_store_remove                             (GListStore *store,
-                                                                         guint       position);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_store_remove_all                         (GListStore *store);
-
-GLIB_AVAILABLE_IN_2_44
-void                    g_list_store_splice                             (GListStore *store,
-                                                                         guint       position,
-                                                                         guint       n_removals,
-                                                                         gpointer   *additions,
-                                                                         guint       n_additions);
-
-G_END_DECLS
-
-#endif /* __G_LIST_STORE_H__ */
 
 /*
  * Copyright © 2015 Canonical Limited
@@ -47991,22 +50368,22 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GZlibDecompressor, g_object_unref)
 
 G_BEGIN_DECLS
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_init (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_shutdown (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_deinit (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_prepare_to_fork (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_recover_from_fork_in_parent (void);
 
-GLIB_AVAILABLE_IN_2_62
+GLIB_AVAILABLE_IN_2_68
 void                            gio_recover_from_fork_in_child (void);
 
 G_END_DECLS
@@ -48146,7 +50523,7 @@ G_END_DECLS
  *
  * Json minor version component (e.g. 2 if %JSON_VERSION is 1.2.3)
  */
-#define JSON_MINOR_VERSION              (5)
+#define JSON_MINOR_VERSION              (6)
 
 /**
  * JSON_MICRO_VERSION:
@@ -48160,7 +50537,7 @@ G_END_DECLS
  *
  * Json version.
  */
-#define JSON_VERSION                    (1.5.1)
+#define JSON_VERSION                    (1.6.1)
 
 /**
  * JSON_VERSION_S:
@@ -48168,7 +50545,7 @@ G_END_DECLS
  * JSON-GLib version, encoded as a string, useful for printing and
  * concatenation.
  */
-#define JSON_VERSION_S                  "1.5.1"
+#define JSON_VERSION_S                  "1.6.1"
 
 #define JSON_ENCODE_VERSION(major,minor,micro) \
         ((major) << 24 | (minor) << 16 | (micro) << 8)
@@ -48776,6 +51153,14 @@ gboolean              json_object_iter_next          (JsonObjectIter  *iter,
                                                       const gchar    **member_name,
                                                       JsonNode       **member_node);
 
+JSON_AVAILABLE_IN_1_6
+void                  json_object_iter_init_ordered  (JsonObjectIter  *iter,
+                                                      JsonObject      *object);
+JSON_AVAILABLE_IN_1_6
+gboolean              json_object_iter_next_ordered  (JsonObjectIter  *iter,
+                                                      const char     **member_name,
+                                                      JsonNode       **member_node);
+
 JSON_AVAILABLE_IN_1_0
 GType                 json_array_get_type            (void) G_GNUC_CONST;
 JSON_AVAILABLE_IN_1_0
@@ -49270,6 +51655,10 @@ JSON_AVAILABLE_IN_1_2
 JsonParser *json_parser_new_immutable           (void);
 JSON_AVAILABLE_IN_1_0
 gboolean    json_parser_load_from_file          (JsonParser           *parser,
+                                                 const gchar          *filename,
+                                                 GError              **error);
+JSON_AVAILABLE_IN_1_6
+gboolean    json_parser_load_from_mapped_file   (JsonParser           *parser,
                                                  const gchar          *filename,
                                                  GError              **error);
 JSON_AVAILABLE_IN_1_0
@@ -49945,8 +52334,14 @@ typedef struct _FridaCrash FridaCrash;
 typedef struct _FridaIcon FridaIcon;
 typedef struct _FridaSession FridaSession;
 typedef struct _FridaScript FridaScript;
+typedef struct _FridaScriptOptions FridaScriptOptions;
 typedef struct _FridaInjector FridaInjector;
 typedef struct _FridaFileMonitor FridaFileMonitor;
+
+typedef enum {
+  FRIDA_RUNTIME_GLIB,
+  FRIDA_RUNTIME_OTHER
+} FridaRuntime;
 
 typedef enum {
   FRIDA_DEVICE_TYPE_LOCAL,
@@ -49959,6 +52354,17 @@ typedef enum {
   FRIDA_CHILD_ORIGIN_EXEC,
   FRIDA_CHILD_ORIGIN_SPAWN
 } FridaChildOrigin;
+
+typedef enum {
+  FRIDA_REALM_NATIVE,
+  FRIDA_REALM_EMULATED
+} FridaRealm;
+
+typedef enum {
+  FRIDA_SCRIPT_RUNTIME_DEFAULT,
+  FRIDA_SCRIPT_RUNTIME_QJS,
+  FRIDA_SCRIPT_RUNTIME_V8
+} FridaScriptRuntime;
 
 typedef enum {
   FRIDA_SESSION_DETACH_REASON_APPLICATION_REQUESTED = 1,
@@ -49997,9 +52403,9 @@ typedef gboolean (* FridaDeviceManagerPredicate) (FridaDevice * device, gpointer
 
 FridaDeviceManager * frida_device_manager_new (void);
 
-void frida_device_manager_close (FridaDeviceManager * self, GAsyncReadyCallback callback, gpointer user_data);
-void frida_device_manager_close_finish (FridaDeviceManager * self, GAsyncResult * result);
-void frida_device_manager_close_sync (FridaDeviceManager * self);
+void frida_device_manager_close (FridaDeviceManager * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_manager_close_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+void frida_device_manager_close_sync (FridaDeviceManager * self, GCancellable * cancellable, GError ** error);
 void frida_device_manager_get_device_by_id (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaDevice * frida_device_manager_get_device_by_id_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
 FridaDevice * frida_device_manager_get_device_by_id_sync (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GError ** error);
@@ -50018,15 +52424,15 @@ FridaDevice * frida_device_manager_find_device_by_type_sync (FridaDeviceManager 
 void frida_device_manager_find_device (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaDevice * frida_device_manager_find_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
 FridaDevice * frida_device_manager_find_device_sync (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
-void frida_device_manager_enumerate_devices (FridaDeviceManager * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_manager_enumerate_devices (FridaDeviceManager * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaDeviceList * frida_device_manager_enumerate_devices_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
-FridaDeviceList * frida_device_manager_enumerate_devices_sync (FridaDeviceManager * self, GError ** error);
-void frida_device_manager_add_remote_device (FridaDeviceManager * self, const gchar * host, GAsyncReadyCallback callback, gpointer user_data);
+FridaDeviceList * frida_device_manager_enumerate_devices_sync (FridaDeviceManager * self, GCancellable * cancellable, GError ** error);
+void frida_device_manager_add_remote_device (FridaDeviceManager * self, const gchar * location, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaDevice * frida_device_manager_add_remote_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
-FridaDevice * frida_device_manager_add_remote_device_sync (FridaDeviceManager * self, const gchar * host, GError ** error);
-void frida_device_manager_remove_remote_device (FridaDeviceManager * self, const gchar * host, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_add_remote_device_sync (FridaDeviceManager * self, const gchar * location, GCancellable * cancellable, GError ** error);
+void frida_device_manager_remove_remote_device (FridaDeviceManager * self, const gchar * location, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_manager_remove_remote_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
-void frida_device_manager_remove_remote_device_sync (FridaDeviceManager * self, const gchar * host, GError ** error);
+void frida_device_manager_remove_remote_device_sync (FridaDeviceManager * self, const gchar * location, GCancellable * cancellable, GError ** error);
 
 /* DeviceList */
 gint frida_device_list_size (FridaDeviceList * self);
@@ -50042,66 +52448,69 @@ FridaDeviceType frida_device_get_dtype (FridaDevice * self);
 FridaDeviceManager * frida_device_get_manager (FridaDevice * self);
 
 gboolean frida_device_is_lost (FridaDevice * self);
-void frida_device_get_frontmost_application (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_get_frontmost_application (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaApplication * frida_device_get_frontmost_application_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaApplication * frida_device_get_frontmost_application_sync (FridaDevice * self, GError ** error);
-void frida_device_enumerate_applications (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaApplication * frida_device_get_frontmost_application_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_enumerate_applications (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaApplicationList * frida_device_enumerate_applications_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaApplicationList * frida_device_enumerate_applications_sync (FridaDevice * self, GError ** error);
-void frida_device_get_process_by_pid (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+FridaApplicationList * frida_device_enumerate_applications_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_get_process_by_pid (FridaDevice * self, guint pid, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_get_process_by_pid_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaProcess * frida_device_get_process_by_pid_sync (FridaDevice * self, guint pid, GError ** error);
+FridaProcess * frida_device_get_process_by_pid_sync (FridaDevice * self, guint pid, GCancellable * cancellable, GError ** error);
 void frida_device_get_process_by_name (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_get_process_by_name_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
 FridaProcess * frida_device_get_process_by_name_sync (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GError ** error);
 void frida_device_get_process (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_get_process_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
 FridaProcess * frida_device_get_process_sync (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
-void frida_device_find_process_by_pid (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_find_process_by_pid (FridaDevice * self, guint pid, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_find_process_by_pid_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaProcess * frida_device_find_process_by_pid_sync (FridaDevice * self, guint pid, GError ** error);
+FridaProcess * frida_device_find_process_by_pid_sync (FridaDevice * self, guint pid, GCancellable * cancellable, GError ** error);
 void frida_device_find_process_by_name (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_find_process_by_name_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
 FridaProcess * frida_device_find_process_by_name_sync (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GError ** error);
 void frida_device_find_process (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcess * frida_device_find_process_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
 FridaProcess * frida_device_find_process_sync (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
-void frida_device_enumerate_processes (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_enumerate_processes (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaProcessList * frida_device_enumerate_processes_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaProcessList * frida_device_enumerate_processes_sync (FridaDevice * self, GError ** error);
-void frida_device_enable_spawn_gating (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcessList * frida_device_enumerate_processes_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_enable_spawn_gating (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_enable_spawn_gating_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-void frida_device_enable_spawn_gating_sync (FridaDevice * self, GError ** error);
-void frida_device_disable_spawn_gating (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_enable_spawn_gating_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_disable_spawn_gating (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_disable_spawn_gating_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-void frida_device_disable_spawn_gating_sync (FridaDevice * self, GError ** error);
-void frida_device_enumerate_pending_spawn (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_disable_spawn_gating_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_enumerate_pending_spawn (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaSpawnList * frida_device_enumerate_pending_spawn_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaSpawnList * frida_device_enumerate_pending_spawn_sync (FridaDevice * self, GError ** error);
-void frida_device_enumerate_pending_children (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaSpawnList * frida_device_enumerate_pending_spawn_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_enumerate_pending_children (FridaDevice * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaChildList * frida_device_enumerate_pending_children_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaChildList * frida_device_enumerate_pending_children_sync (FridaDevice * self, GError ** error);
-void frida_device_spawn (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GAsyncReadyCallback callback, gpointer user_data);
+FridaChildList * frida_device_enumerate_pending_children_sync (FridaDevice * self, GCancellable * cancellable, GError ** error);
+void frida_device_spawn (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_device_spawn_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-guint frida_device_spawn_sync (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GError ** error);
-void frida_device_input (FridaDevice * self, guint pid, GBytes * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_device_spawn_sync (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GCancellable * cancellable, GError ** error);
+void frida_device_input (FridaDevice * self, guint pid, GBytes * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_input_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-void frida_device_input_sync (FridaDevice * self, guint pid, GBytes * data, GError ** error);
-void frida_device_resume (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_input_sync (FridaDevice * self, guint pid, GBytes * data, GCancellable * cancellable, GError ** error);
+void frida_device_resume (FridaDevice * self, guint pid, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_resume_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-void frida_device_resume_sync (FridaDevice * self, guint pid, GError ** error);
-void frida_device_kill (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_resume_sync (FridaDevice * self, guint pid, GCancellable * cancellable, GError ** error);
+void frida_device_kill (FridaDevice * self, guint pid, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_device_kill_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-void frida_device_kill_sync (FridaDevice * self, guint pid, GError ** error);
-void frida_device_attach (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_kill_sync (FridaDevice * self, guint pid, GCancellable * cancellable, GError ** error);
+void frida_device_attach (FridaDevice * self, guint pid, FridaRealm realm, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaSession * frida_device_attach_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-FridaSession * frida_device_attach_sync (FridaDevice * self, guint pid, GError ** error);
-void frida_device_inject_library_file (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+FridaSession * frida_device_attach_sync (FridaDevice * self, guint pid, FridaRealm realm, GCancellable * cancellable, GError ** error);
+void frida_device_inject_library_file (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_device_inject_library_file_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-guint frida_device_inject_library_file_sync (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GError ** error);
-void frida_device_inject_library_blob (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_device_inject_library_file_sync (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GError ** error);
+void frida_device_inject_library_blob (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_device_inject_library_blob_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
-guint frida_device_inject_library_blob_sync (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GError ** error);
+guint frida_device_inject_library_blob_sync (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GError ** error);
+void frida_device_open_channel (FridaDevice * self, const gchar * address, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+GIOStream * frida_device_open_channel_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+GIOStream * frida_device_open_channel_sync (FridaDevice * self, const gchar * address, GCancellable * cancellable, GError ** error);
 
 /* ApplicationList */
 gint frida_application_list_size (FridaApplicationList * self);
@@ -50180,70 +52589,79 @@ guint frida_session_get_pid (FridaSession * self);
 FridaDevice * frida_session_get_device (FridaSession * self);
 
 gboolean frida_session_is_detached (FridaSession * self);
-void frida_session_detach (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
-void frida_session_detach_finish (FridaSession * self, GAsyncResult * result);
-void frida_session_detach_sync (FridaSession * self);
-void frida_session_enable_child_gating (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_detach (FridaSession * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_detach_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_detach_sync (FridaSession * self, GCancellable * cancellable, GError ** error);
+void frida_session_enable_child_gating (FridaSession * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_session_enable_child_gating_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-void frida_session_enable_child_gating_sync (FridaSession * self, GError ** error);
-void frida_session_disable_child_gating (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_enable_child_gating_sync (FridaSession * self, GCancellable * cancellable, GError ** error);
+void frida_session_disable_child_gating (FridaSession * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_session_disable_child_gating_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-void frida_session_disable_child_gating_sync (FridaSession * self, GError ** error);
-void frida_session_create_script (FridaSession * self, const gchar * name, const gchar * source, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_disable_child_gating_sync (FridaSession * self, GCancellable * cancellable, GError ** error);
+void frida_session_create_script (FridaSession * self, const gchar * source, FridaScriptOptions * options, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaScript * frida_session_create_script_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-FridaScript * frida_session_create_script_sync (FridaSession * self, const gchar * name, const gchar * source, GError ** error);
-void frida_session_create_script_from_bytes (FridaSession * self, GBytes * bytes, GAsyncReadyCallback callback, gpointer user_data);
+FridaScript * frida_session_create_script_sync (FridaSession * self, const gchar * source, FridaScriptOptions * options, GCancellable * cancellable, GError ** error);
+void frida_session_create_script_from_bytes (FridaSession * self, GBytes * bytes, FridaScriptOptions * options, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 FridaScript * frida_session_create_script_from_bytes_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-FridaScript * frida_session_create_script_from_bytes_sync (FridaSession * self, GBytes * bytes, GError ** error);
-void frida_session_compile_script (FridaSession * self, const gchar * name, const gchar * source, GAsyncReadyCallback callback, gpointer user_data);
+FridaScript * frida_session_create_script_from_bytes_sync (FridaSession * self, GBytes * bytes, FridaScriptOptions * options, GCancellable * cancellable, GError ** error);
+void frida_session_compile_script (FridaSession * self, const gchar * source, FridaScriptOptions * options, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 GBytes * frida_session_compile_script_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-GBytes * frida_session_compile_script_sync (FridaSession * self, const gchar * name, const gchar * source, GError ** error);
-void frida_session_enable_debugger (FridaSession * self, guint16 port, GAsyncReadyCallback callback, gpointer user_data);
+GBytes * frida_session_compile_script_sync (FridaSession * self, const gchar * source, FridaScriptOptions * options, GCancellable * cancellable, GError ** error);
+void frida_session_enable_debugger (FridaSession * self, guint16 port, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_session_enable_debugger_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-void frida_session_enable_debugger_sync (FridaSession * self, guint16 port, GError ** error);
-void frida_session_disable_debugger (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_enable_debugger_sync (FridaSession * self, guint16 port, GCancellable * cancellable, GError ** error);
+void frida_session_disable_debugger (FridaSession * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_session_disable_debugger_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-void frida_session_disable_debugger_sync (FridaSession * self, GError ** error);
-void frida_session_enable_jit (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_disable_debugger_sync (FridaSession * self, GCancellable * cancellable, GError ** error);
+void frida_session_enable_jit (FridaSession * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_session_enable_jit_finish (FridaSession * self, GAsyncResult * result, GError ** error);
-void frida_session_enable_jit_sync (FridaSession * self, GError ** error);
+void frida_session_enable_jit_sync (FridaSession * self, GCancellable * cancellable, GError ** error);
 
 /* Script */
 guint frida_script_get_id (FridaScript * self);
 
 gboolean frida_script_is_destroyed (FridaScript * self);
-void frida_script_load (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_load (FridaScript * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_script_load_finish (FridaScript * self, GAsyncResult * result, GError ** error);
-void frida_script_load_sync (FridaScript * self, GError ** error);
-void frida_script_unload (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_load_sync (FridaScript * self, GCancellable * cancellable, GError ** error);
+void frida_script_unload (FridaScript * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_script_unload_finish (FridaScript * self, GAsyncResult * result, GError ** error);
-void frida_script_unload_sync (FridaScript * self, GError ** error);
-void frida_script_eternalize (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_unload_sync (FridaScript * self, GCancellable * cancellable, GError ** error);
+void frida_script_eternalize (FridaScript * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_script_eternalize_finish (FridaScript * self, GAsyncResult * result, GError ** error);
-void frida_script_eternalize_sync (FridaScript * self, GError ** error);
-void frida_script_post (FridaScript * self, const gchar * message, GBytes * data, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_eternalize_sync (FridaScript * self, GCancellable * cancellable, GError ** error);
+void frida_script_post (FridaScript * self, const gchar * message, GBytes * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_script_post_finish (FridaScript * self, GAsyncResult * result, GError ** error);
-void frida_script_post_sync (FridaScript * self, const gchar * message, GBytes * data, GError ** error);
+void frida_script_post_sync (FridaScript * self, const gchar * message, GBytes * data, GCancellable * cancellable, GError ** error);
+
+/* ScriptOptions */
+FridaScriptOptions * frida_script_options_new (void);
+
+const gchar * frida_script_options_get_name (FridaScriptOptions * self);
+FridaScriptRuntime frida_script_options_get_runtime (FridaScriptOptions * self);
+
+void frida_script_options_set_name (FridaScriptOptions * self, const gchar * value);
+void frida_script_options_set_runtime (FridaScriptOptions * self, FridaScriptRuntime value);
 
 /* Injector */
 FridaInjector * frida_injector_new (void);
 
 FridaInjector * frida_injector_new_inprocess (void);
-void frida_injector_close (FridaInjector * self, GAsyncReadyCallback callback, gpointer user_data);
-void frida_injector_close_finish (FridaInjector * self, GAsyncResult * result);
-void frida_injector_close_sync (FridaInjector * self);
-void frida_injector_inject_library_file (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+void frida_injector_close (FridaInjector * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+void frida_injector_close_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
+void frida_injector_close_sync (FridaInjector * self, GCancellable * cancellable, GError ** error);
+void frida_injector_inject_library_file (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_injector_inject_library_file_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
-guint frida_injector_inject_library_file_sync (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GError ** error);
-void frida_injector_inject_library_blob (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_inject_library_file_sync (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GError ** error);
+void frida_injector_inject_library_blob (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_injector_inject_library_blob_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
-guint frida_injector_inject_library_blob_sync (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GError ** error);
-void frida_injector_demonitor_and_clone_state (FridaInjector * self, guint id, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_inject_library_blob_sync (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GCancellable * cancellable, GError ** error);
+void frida_injector_demonitor_and_clone_state (FridaInjector * self, guint id, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 guint frida_injector_demonitor_and_clone_state_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
-guint frida_injector_demonitor_and_clone_state_sync (FridaInjector * self, guint id, GError ** error);
-void frida_injector_recreate_thread (FridaInjector * self, guint pid, guint id, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_demonitor_and_clone_state_sync (FridaInjector * self, guint id, GCancellable * cancellable, GError ** error);
+void frida_injector_recreate_thread (FridaInjector * self, guint pid, guint id, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_injector_recreate_thread_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
-void frida_injector_recreate_thread_sync (FridaInjector * self, guint pid, guint id, GError ** error);
+void frida_injector_recreate_thread_sync (FridaInjector * self, guint pid, guint id, GCancellable * cancellable, GError ** error);
 
 /* FileMonitor */
 FridaFileMonitor * frida_file_monitor_new (const gchar * path);
@@ -50253,9 +52671,9 @@ const gchar * frida_file_monitor_get_path (FridaFileMonitor * self);
 void frida_file_monitor_enable (FridaFileMonitor * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_file_monitor_enable_finish (FridaFileMonitor * self, GAsyncResult * result, GError ** error);
 void frida_file_monitor_enable_sync (FridaFileMonitor * self, GCancellable * cancellable, GError ** error);
-void frida_file_monitor_disable (FridaFileMonitor * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_file_monitor_disable (FridaFileMonitor * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
 void frida_file_monitor_disable_finish (FridaFileMonitor * self, GAsyncResult * result, GError ** error);
-void frida_file_monitor_disable_sync (FridaFileMonitor * self, GError ** error);
+void frida_file_monitor_disable_sync (FridaFileMonitor * self, GCancellable * cancellable, GError ** error);
 
 /* Errors */
 GQuark frida_error_quark (void);
@@ -50277,34 +52695,44 @@ typedef enum {
 } FridaError;
 
 /* GTypes */
+GType frida_runtime_get_type (void) G_GNUC_CONST;
 GType frida_device_type_get_type (void) G_GNUC_CONST;
 GType frida_child_origin_get_type (void) G_GNUC_CONST;
+GType frida_realm_get_type (void) G_GNUC_CONST;
+GType frida_script_runtime_get_type (void) G_GNUC_CONST;
 GType frida_session_detach_reason_get_type (void) G_GNUC_CONST;
 GType frida_stdio_get_type (void) G_GNUC_CONST;
 GType frida_unload_policy_get_type (void) G_GNUC_CONST;
-GType frida_device_manager_get_type (void) G_GNUC_CONST;
-GType frida_device_list_get_type (void) G_GNUC_CONST;
-GType frida_device_get_type (void) G_GNUC_CONST;
-GType frida_application_list_get_type (void) G_GNUC_CONST;
-GType frida_application_get_type (void) G_GNUC_CONST;
-GType frida_process_list_get_type (void) G_GNUC_CONST;
-GType frida_process_get_type (void) G_GNUC_CONST;
-GType frida_spawn_options_get_type (void) G_GNUC_CONST;
-GType frida_spawn_list_get_type (void) G_GNUC_CONST;
-GType frida_spawn_get_type (void) G_GNUC_CONST;
-GType frida_child_list_get_type (void) G_GNUC_CONST;
-GType frida_child_get_type (void) G_GNUC_CONST;
-GType frida_crash_get_type (void) G_GNUC_CONST;
-GType frida_icon_get_type (void) G_GNUC_CONST;
-GType frida_session_get_type (void) G_GNUC_CONST;
-GType frida_script_get_type (void) G_GNUC_CONST;
-GType frida_injector_get_type (void) G_GNUC_CONST;
-GType frida_file_monitor_get_type (void) G_GNUC_CONST;
+GType frida_device_manager_get_type (void) G_GNUC_CONST ;
+GType frida_device_list_get_type (void) G_GNUC_CONST ;
+GType frida_device_get_type (void) G_GNUC_CONST ;
+GType frida_application_list_get_type (void) G_GNUC_CONST ;
+GType frida_application_get_type (void) G_GNUC_CONST ;
+GType frida_process_list_get_type (void) G_GNUC_CONST ;
+GType frida_process_get_type (void) G_GNUC_CONST ;
+GType frida_spawn_options_get_type (void) G_GNUC_CONST ;
+GType frida_spawn_list_get_type (void) G_GNUC_CONST ;
+GType frida_spawn_get_type (void) G_GNUC_CONST ;
+GType frida_child_list_get_type (void) G_GNUC_CONST ;
+GType frida_child_get_type (void) G_GNUC_CONST ;
+GType frida_crash_get_type (void) G_GNUC_CONST ;
+GType frida_icon_get_type (void) G_GNUC_CONST ;
+GType frida_session_get_type (void) G_GNUC_CONST ;
+GType frida_script_get_type (void) G_GNUC_CONST ;
+GType frida_script_options_get_type (void) G_GNUC_CONST ;
+GType frida_injector_get_type (void) G_GNUC_CONST ;
+GType frida_file_monitor_get_type (void) G_GNUC_CONST ;
 
 /* Macros */
+#define FRIDA_TYPE_RUNTIME (frida_runtime_get_type ())
+
 #define FRIDA_TYPE_DEVICE_TYPE (frida_device_type_get_type ())
 
 #define FRIDA_TYPE_CHILD_ORIGIN (frida_child_origin_get_type ())
+
+#define FRIDA_TYPE_REALM (frida_realm_get_type ())
+
+#define FRIDA_TYPE_SCRIPT_RUNTIME (frida_script_runtime_get_type ())
 
 #define FRIDA_TYPE_SESSION_DETACH_REASON (frida_session_detach_reason_get_type ())
 
@@ -50375,6 +52803,10 @@ GType frida_file_monitor_get_type (void) G_GNUC_CONST;
 #define FRIDA_TYPE_SCRIPT (frida_script_get_type ())
 #define FRIDA_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SCRIPT, FridaScript))
 #define FRIDA_IS_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SCRIPT))
+
+#define FRIDA_TYPE_SCRIPT_OPTIONS (frida_script_options_get_type ())
+#define FRIDA_SCRIPT_OPTIONS(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SCRIPT_OPTIONS, FridaScriptOptions))
+#define FRIDA_IS_SCRIPT_OPTIONS(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SCRIPT_OPTIONS))
 
 #define FRIDA_TYPE_INJECTOR (frida_injector_get_type ())
 #define FRIDA_INJECTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_INJECTOR, FridaInjector))
