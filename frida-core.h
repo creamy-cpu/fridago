@@ -41963,4 +41963,8429 @@ typedef GVariant *    (*GSettingsBindSetMapping)                        (const G
                                                                          gpointer            user_data);
 
 /**
- * GSettingsBindGetMap
+ * GSettingsBindGetMapping:
+ * @value: return location for the property value
+ * @variant: the #GVariant
+ * @user_data: user data that was specified when the binding was created
+ *
+ * The type for the function that is used to convert from #GSettings to
+ * an object property. The @value is already initialized to hold values
+ * of the appropriate type.
+ *
+ * Returns: %TRUE if the conversion succeeded, %FALSE in case of an error
+ */
+typedef gboolean      (*GSettingsBindGetMapping)                        (GValue             *value,
+                                                                         GVariant           *variant,
+                                                                         gpointer            user_data);
+
+/**
+ * GSettingsGetMapping:
+ * @value: the #GVariant to map, or %NULL
+ * @result: (out): the result of the mapping
+ * @user_data: (closure): the user data that was passed to
+ * g_settings_get_mapped()
+ *
+ * The type of the function that is used to convert from a value stored
+ * in a #GSettings to a value that is useful to the application.
+ *
+ * If the value is successfully mapped, the result should be stored at
+ * @result and %TRUE returned.  If mapping fails (for example, if @value
+ * is not in the right format) then %FALSE should be returned.
+ *
+ * If @value is %NULL then it means that the mapping function is being
+ * given a "last chance" to successfully return a valid value.  %TRUE
+ * must be returned in this case.
+ *
+ * Returns: %TRUE if the conversion succeeded, %FALSE in case of an error
+ **/
+typedef gboolean      (*GSettingsGetMapping)                            (GVariant           *value,
+                                                                         gpointer           *result,
+                                                                         gpointer            user_data);
+
+/**
+ * GSettingsBindFlags:
+ * @G_SETTINGS_BIND_DEFAULT: Equivalent to `G_SETTINGS_BIND_GET|G_SETTINGS_BIND_SET`
+ * @G_SETTINGS_BIND_GET: Update the #GObject property when the setting changes.
+ *     It is an error to use this flag if the property is not writable.
+ * @G_SETTINGS_BIND_SET: Update the setting when the #GObject property changes.
+ *     It is an error to use this flag if the property is not readable.
+ * @G_SETTINGS_BIND_NO_SENSITIVITY: Do not try to bind a "sensitivity" property to the writability of the setting
+ * @G_SETTINGS_BIND_GET_NO_CHANGES: When set in addition to #G_SETTINGS_BIND_GET, set the #GObject property
+ *     value initially from the setting, but do not listen for changes of the setting
+ * @G_SETTINGS_BIND_INVERT_BOOLEAN: When passed to g_settings_bind(), uses a pair of mapping functions that invert
+ *     the boolean value when mapping between the setting and the property.  The setting and property must both
+ *     be booleans.  You cannot pass this flag to g_settings_bind_with_mapping().
+ *
+ * Flags used when creating a binding. These flags determine in which
+ * direction the binding works. The default is to synchronize in both
+ * directions.
+ */
+typedef enum
+{
+  G_SETTINGS_BIND_DEFAULT,
+  G_SETTINGS_BIND_GET            = (1<<0),
+  G_SETTINGS_BIND_SET            = (1<<1),
+  G_SETTINGS_BIND_NO_SENSITIVITY = (1<<2),
+  G_SETTINGS_BIND_GET_NO_CHANGES = (1<<3),
+  G_SETTINGS_BIND_INVERT_BOOLEAN = (1<<4)
+} GSettingsBindFlags;
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_settings_bind                                 (GSettings               *settings,
+                                                                         const gchar             *key,
+                                                                         gpointer                 object,
+                                                                         const gchar             *property,
+                                                                         GSettingsBindFlags       flags);
+GLIB_AVAILABLE_IN_ALL
+void                    g_settings_bind_with_mapping                    (GSettings               *settings,
+                                                                         const gchar             *key,
+                                                                         gpointer                 object,
+                                                                         const gchar             *property,
+                                                                         GSettingsBindFlags       flags,
+                                                                         GSettingsBindGetMapping  get_mapping,
+                                                                         GSettingsBindSetMapping  set_mapping,
+                                                                         gpointer                 user_data,
+                                                                         GDestroyNotify           destroy);
+GLIB_AVAILABLE_IN_ALL
+void                    g_settings_bind_writable                        (GSettings               *settings,
+                                                                         const gchar             *key,
+                                                                         gpointer                 object,
+                                                                         const gchar             *property,
+                                                                         gboolean                 inverted);
+GLIB_AVAILABLE_IN_ALL
+void                    g_settings_unbind                               (gpointer                 object,
+                                                                         const gchar             *property);
+
+GLIB_AVAILABLE_IN_2_32
+GAction *               g_settings_create_action                        (GSettings               *settings,
+                                                                         const gchar             *key);
+
+GLIB_AVAILABLE_IN_ALL
+gpointer                g_settings_get_mapped                           (GSettings               *settings,
+                                                                         const gchar             *key,
+                                                                         GSettingsGetMapping      mapping,
+                                                                         gpointer                 user_data);
+
+G_END_DECLS
+
+#endif  /* __G_SETTINGS_H__ */
+/*
+ * Copyright © 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SIMPLE_ACTION_H__
+#define __G_SIMPLE_ACTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_ACTION                                (g_simple_action_get_type ())
+#define G_SIMPLE_ACTION(inst)                               (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SIMPLE_ACTION, GSimpleAction))
+#define G_IS_SIMPLE_ACTION(inst)                            (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SIMPLE_ACTION))
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_simple_action_get_type                        (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSimpleAction *         g_simple_action_new                             (const gchar        *name,
+                                                                         const GVariantType *parameter_type);
+
+GLIB_AVAILABLE_IN_ALL
+GSimpleAction *         g_simple_action_new_stateful                    (const gchar        *name,
+                                                                         const GVariantType *parameter_type,
+                                                                         GVariant           *state);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_simple_action_set_enabled                     (GSimpleAction      *simple,
+                                                                         gboolean            enabled);
+
+GLIB_AVAILABLE_IN_2_30
+void                    g_simple_action_set_state                       (GSimpleAction      *simple,
+                                                                         GVariant           *value);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_simple_action_set_state_hint                  (GSimpleAction      *simple,
+                                                                         GVariant           *state_hint);
+
+G_END_DECLS
+
+#endif /* __G_SIMPLE_ACTION_H__ */
+/*
+ * Copyright © 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SIMPLE_ACTION_GROUP_H__
+#define __G_SIMPLE_ACTION_GROUP_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_ACTION_GROUP                          (g_simple_action_group_get_type ())
+#define G_SIMPLE_ACTION_GROUP(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SIMPLE_ACTION_GROUP, GSimpleActionGroup))
+#define G_SIMPLE_ACTION_GROUP_CLASS(class)                  (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SIMPLE_ACTION_GROUP, GSimpleActionGroupClass))
+#define G_IS_SIMPLE_ACTION_GROUP(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SIMPLE_ACTION_GROUP))
+#define G_IS_SIMPLE_ACTION_GROUP_CLASS(class)               (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SIMPLE_ACTION_GROUP))
+#define G_SIMPLE_ACTION_GROUP_GET_CLASS(inst)               (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SIMPLE_ACTION_GROUP, GSimpleActionGroupClass))
+
+typedef struct _GSimpleActionGroupPrivate                   GSimpleActionGroupPrivate;
+typedef struct _GSimpleActionGroupClass                     GSimpleActionGroupClass;
+
+/**
+ * GSimpleActionGroup:
+ *
+ * The #GSimpleActionGroup structure contains private data and should only be accessed using the provided API.
+ *
+ * Since: 2.28
+ */
+struct _GSimpleActionGroup
+{
+  /*< private >*/
+  GObject parent_instance;
+
+  GSimpleActionGroupPrivate *priv;
+};
+
+struct _GSimpleActionGroupClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  /*< private >*/
+  gpointer padding[12];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_simple_action_group_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSimpleActionGroup *    g_simple_action_group_new                       (void);
+
+GLIB_DEPRECATED_IN_2_38_FOR (g_action_map_lookup_action)
+GAction *               g_simple_action_group_lookup                    (GSimpleActionGroup *simple,
+                                                                         const gchar        *action_name);
+
+GLIB_DEPRECATED_IN_2_38_FOR (g_action_map_add_action)
+void                    g_simple_action_group_insert                    (GSimpleActionGroup *simple,
+                                                                         GAction            *action);
+
+GLIB_DEPRECATED_IN_2_38_FOR (g_action_map_remove_action)
+void                    g_simple_action_group_remove                    (GSimpleActionGroup *simple,
+                                                                         const gchar        *action_name);
+
+GLIB_DEPRECATED_IN_2_38_FOR (g_action_map_add_action_entries)
+void                    g_simple_action_group_add_entries               (GSimpleActionGroup *simple,
+                                                                         const GActionEntry *entries,
+                                                                         gint                n_entries,
+                                                                         gpointer            user_data);
+
+G_END_DECLS
+
+#endif /* __G_SIMPLE_ACTION_GROUP_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SIMPLE_ASYNC_RESULT_H__
+#define __G_SIMPLE_ASYNC_RESULT_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_ASYNC_RESULT         (g_simple_async_result_get_type ())
+#define G_SIMPLE_ASYNC_RESULT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SIMPLE_ASYNC_RESULT, GSimpleAsyncResult))
+#define G_SIMPLE_ASYNC_RESULT_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_SIMPLE_ASYNC_RESULT, GSimpleAsyncResultClass))
+#define G_IS_SIMPLE_ASYNC_RESULT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SIMPLE_ASYNC_RESULT))
+#define G_IS_SIMPLE_ASYNC_RESULT_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_SIMPLE_ASYNC_RESULT))
+#define G_SIMPLE_ASYNC_RESULT_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_SIMPLE_ASYNC_RESULT, GSimpleAsyncResultClass))
+
+/**
+ * GSimpleAsyncResult:
+ *
+ * A simple implementation of #GAsyncResult.
+ **/
+typedef struct _GSimpleAsyncResultClass   GSimpleAsyncResultClass;
+
+
+GLIB_AVAILABLE_IN_ALL
+GType               g_simple_async_result_get_type         (void) G_GNUC_CONST;
+
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_new)
+GSimpleAsyncResult *g_simple_async_result_new              (GObject                 *source_object,
+							    GAsyncReadyCallback      callback,
+							    gpointer                 user_data,
+							    gpointer                 source_tag);
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_new)
+GSimpleAsyncResult *g_simple_async_result_new_error        (GObject                 *source_object,
+							    GAsyncReadyCallback      callback,
+							    gpointer                 user_data,
+							    GQuark                   domain,
+							    gint                     code,
+							    const char              *format,
+							    ...) G_GNUC_PRINTF (6, 7);
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_new)
+GSimpleAsyncResult *g_simple_async_result_new_from_error   (GObject                 *source_object,
+							    GAsyncReadyCallback      callback,
+							    gpointer                 user_data,
+							    const GError            *error);
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_new)
+GSimpleAsyncResult *g_simple_async_result_new_take_error   (GObject                 *source_object,
+							    GAsyncReadyCallback      callback,
+							    gpointer                 user_data,
+							    GError                  *error);
+
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_op_res_gpointer (GSimpleAsyncResult      *simple,
+                                                               gpointer                 op_res,
+                                                               GDestroyNotify           destroy_op_res);
+GLIB_DEPRECATED_IN_2_46
+gpointer            g_simple_async_result_get_op_res_gpointer (GSimpleAsyncResult      *simple);
+
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_op_res_gssize   (GSimpleAsyncResult      *simple,
+                                                               gssize                   op_res);
+GLIB_DEPRECATED_IN_2_46
+gssize              g_simple_async_result_get_op_res_gssize   (GSimpleAsyncResult      *simple);
+
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_op_res_gboolean (GSimpleAsyncResult      *simple,
+                                                               gboolean                 op_res);
+GLIB_DEPRECATED_IN_2_46
+gboolean            g_simple_async_result_get_op_res_gboolean (GSimpleAsyncResult      *simple);
+
+
+
+GLIB_AVAILABLE_IN_2_32 /* Also deprecated, but can't mark something both AVAILABLE and DEPRECATED */
+void                g_simple_async_result_set_check_cancellable (GSimpleAsyncResult *simple,
+                                                                 GCancellable       *check_cancellable);
+GLIB_DEPRECATED_IN_2_46
+gpointer            g_simple_async_result_get_source_tag   (GSimpleAsyncResult      *simple);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_handle_cancellation (GSimpleAsyncResult      *simple,
+								   gboolean          handle_cancellation);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_complete         (GSimpleAsyncResult      *simple);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_complete_in_idle (GSimpleAsyncResult      *simple);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_run_in_thread    (GSimpleAsyncResult      *simple,
+							    GSimpleAsyncThreadFunc   func,
+							    int                      io_priority,
+							    GCancellable            *cancellable);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_from_error   (GSimpleAsyncResult      *simple,
+							    const GError            *error);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_take_error       (GSimpleAsyncResult      *simple,
+							    GError            *error);
+GLIB_DEPRECATED_IN_2_46
+gboolean            g_simple_async_result_propagate_error  (GSimpleAsyncResult      *simple,
+							    GError                 **dest);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_error        (GSimpleAsyncResult      *simple,
+							    GQuark                   domain,
+							    gint                     code,
+							    const char              *format,
+							    ...) G_GNUC_PRINTF (4, 5);
+GLIB_DEPRECATED_IN_2_46
+void                g_simple_async_result_set_error_va     (GSimpleAsyncResult      *simple,
+							    GQuark                   domain,
+							    gint                     code,
+							    const char              *format,
+							    va_list                  args)
+							    G_GNUC_PRINTF(4, 0);
+GLIB_DEPRECATED_IN_2_46
+gboolean            g_simple_async_result_is_valid         (GAsyncResult            *result,
+                                                            GObject                 *source,
+                                                            gpointer                 source_tag);
+
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_report_error)
+void g_simple_async_report_error_in_idle  (GObject            *object,
+					   GAsyncReadyCallback callback,
+					   gpointer            user_data,
+					   GQuark              domain,
+					   gint                code,
+					   const char         *format,
+					   ...) G_GNUC_PRINTF(6, 7);
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_report_error)
+void g_simple_async_report_gerror_in_idle (GObject            *object,
+					   GAsyncReadyCallback callback,
+					   gpointer            user_data,
+					   const GError       *error);
+GLIB_DEPRECATED_IN_2_46_FOR(g_task_report_error)
+void g_simple_async_report_take_gerror_in_idle (GObject            *object,
+                                                GAsyncReadyCallback callback,
+                                                gpointer            user_data,
+                                                GError             *error);
+
+G_END_DECLS
+
+
+
+#endif /* __G_SIMPLE_ASYNC_RESULT_H__ */
+/*
+ * Copyright © 2014 NICE s.r.l.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ignacio Casal Quinteiro <ignacio.casal@nice-software.com>
+ */
+
+#ifndef __G_SIMPLE_IO_STREAM_H__
+#define __G_SIMPLE_IO_STREAM_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_IO_STREAM                  (g_simple_io_stream_get_type ())
+#define G_SIMPLE_IO_STREAM(obj)                  (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_SIMPLE_IO_STREAM, GSimpleIOStream))
+#define G_IS_SIMPLE_IO_STREAM(obj)               (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_SIMPLE_IO_STREAM))
+
+GLIB_AVAILABLE_IN_2_44
+GType                g_simple_io_stream_get_type         (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_44
+GIOStream           *g_simple_io_stream_new              (GInputStream  *input_stream,
+                                                          GOutputStream *output_stream);
+
+G_END_DECLS
+
+#endif /* __G_SIMPLE_IO_STREAM_H__ */
+/*
+ * Copyright © 2010 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SIMPLE_PERMISSION_H__
+#define __G_SIMPLE_PERMISSION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_PERMISSION      (g_simple_permission_get_type ())
+#define G_SIMPLE_PERMISSION(inst)     (G_TYPE_CHECK_INSTANCE_CAST ((inst),   \
+                                       G_TYPE_SIMPLE_PERMISSION,             \
+                                       GSimplePermission))
+#define G_IS_SIMPLE_PERMISSION(inst)  (G_TYPE_CHECK_INSTANCE_TYPE ((inst),   \
+                                       G_TYPE_SIMPLE_PERMISSION))
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_simple_permission_get_type            (void);
+GLIB_AVAILABLE_IN_ALL
+GPermission *           g_simple_permission_new                 (gboolean allowed);
+
+G_END_DECLS
+
+#endif /* __G_SIMPLE_PERMISSION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2008, 2009 Codethink Limited
+ * Copyright © 2009 Red Hat, Inc
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_CLIENT_H__
+#define __G_SOCKET_CLIENT_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CLIENT                                (g_socket_client_get_type ())
+#define G_SOCKET_CLIENT(inst)                               (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClient))
+#define G_SOCKET_CLIENT_CLASS(class)                        (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
+#define G_IS_SOCKET_CLIENT(inst)                            (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_CLIENT))
+#define G_IS_SOCKET_CLIENT_CLASS(class)                     (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_CLIENT))
+#define G_SOCKET_CLIENT_GET_CLASS(inst)                     (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_CLIENT, GSocketClientClass))
+
+typedef struct _GSocketClientPrivate                        GSocketClientPrivate;
+typedef struct _GSocketClientClass                          GSocketClientClass;
+
+struct _GSocketClientClass
+{
+  GObjectClass parent_class;
+
+  void (* event) (GSocketClient       *client,
+		  GSocketClientEvent  event,
+		  GSocketConnectable  *connectable,
+		  GIOStream           *connection);
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+};
+
+struct _GSocketClient
+{
+  GObject parent_instance;
+  GSocketClientPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_socket_client_get_type                        (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketClient          *g_socket_client_new                             (void);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketFamily           g_socket_client_get_family                      (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_family                      (GSocketClient        *client,
+									 GSocketFamily         family);
+GLIB_AVAILABLE_IN_ALL
+GSocketType             g_socket_client_get_socket_type                 (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_socket_type                 (GSocketClient        *client,
+									 GSocketType           type);
+GLIB_AVAILABLE_IN_ALL
+GSocketProtocol         g_socket_client_get_protocol                    (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_protocol                    (GSocketClient        *client,
+									 GSocketProtocol       protocol);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress         *g_socket_client_get_local_address               (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_local_address               (GSocketClient        *client,
+									 GSocketAddress       *address);
+GLIB_AVAILABLE_IN_ALL
+guint                   g_socket_client_get_timeout                     (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_timeout                     (GSocketClient        *client,
+									 guint                 timeout);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_socket_client_get_enable_proxy                (GSocketClient        *client);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_set_enable_proxy                (GSocketClient        *client,
+    									 gboolean	      enable);
+
+GLIB_AVAILABLE_IN_2_28
+gboolean                g_socket_client_get_tls                         (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_28
+void                    g_socket_client_set_tls                         (GSocketClient        *client,
+									 gboolean              tls);
+GLIB_AVAILABLE_IN_2_28
+GTlsCertificateFlags    g_socket_client_get_tls_validation_flags        (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_28
+void                    g_socket_client_set_tls_validation_flags        (GSocketClient        *client,
+									 GTlsCertificateFlags  flags);
+GLIB_AVAILABLE_IN_2_36
+GProxyResolver         *g_socket_client_get_proxy_resolver              (GSocketClient        *client);
+GLIB_AVAILABLE_IN_2_36
+void                    g_socket_client_set_proxy_resolver              (GSocketClient        *client,
+                                                                         GProxyResolver       *proxy_resolver);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect                         (GSocketClient        *client,
+                                                                         GSocketConnectable   *connectable,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_host                 (GSocketClient        *client,
+									 const gchar          *host_and_port,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_service              (GSocketClient        *client,
+									 const gchar          *domain,
+									 const gchar          *service,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_2_26
+GSocketConnection *     g_socket_client_connect_to_uri                  (GSocketClient        *client,
+									 const gchar          *uri,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_async                   (GSocketClient        *client,
+                                                                         GSocketConnectable   *connectable,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_finish                  (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_host_async           (GSocketClient        *client,
+									 const gchar          *host_and_port,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_host_finish          (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_service_async        (GSocketClient        *client,
+									 const gchar          *domain,
+									 const gchar          *service,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_service_finish       (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_client_connect_to_uri_async            (GSocketClient        *client,
+									 const gchar          *uri,
+									 guint16               default_port,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_client_connect_to_uri_finish           (GSocketClient        *client,
+                                                                         GAsyncResult         *result,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void			g_socket_client_add_application_proxy		(GSocketClient        *client,
+									 const gchar          *protocol);
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_CLIENT_H___ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2008 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_SOCKET_CONNECTABLE_H__
+#define __G_SOCKET_CONNECTABLE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CONNECTABLE            (g_socket_connectable_get_type ())
+#define G_SOCKET_CONNECTABLE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectable))
+#define G_IS_SOCKET_CONNECTABLE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_SOCKET_CONNECTABLE))
+#define G_SOCKET_CONNECTABLE_GET_IFACE(obj)  (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_SOCKET_CONNECTABLE, GSocketConnectableIface))
+
+/**
+ * GSocketConnectable:
+ *
+ * Interface for objects that contain or generate a #GSocketAddress.
+ */
+typedef struct _GSocketConnectableIface GSocketConnectableIface;
+
+/**
+ * GSocketConnectableIface:
+ * @g_iface: The parent interface.
+ * @enumerate: Creates a #GSocketAddressEnumerator
+ * @proxy_enumerate: Creates a #GProxyAddressEnumerator
+ * @to_string: Format the connectable’s address as a string for debugging.
+ *    Implementing this is optional. (Since: 2.48)
+ *
+ * Provides an interface for returning a #GSocketAddressEnumerator
+ * and #GProxyAddressEnumerator
+ */
+struct _GSocketConnectableIface
+{
+  GTypeInterface g_iface;
+
+  /* Virtual Table */
+
+  GSocketAddressEnumerator * (* enumerate)       (GSocketConnectable *connectable);
+
+  GSocketAddressEnumerator * (* proxy_enumerate) (GSocketConnectable *connectable);
+
+  gchar                    * (* to_string)       (GSocketConnectable *connectable);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                     g_socket_connectable_get_type  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketAddressEnumerator *g_socket_connectable_enumerate (GSocketConnectable *connectable);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketAddressEnumerator *g_socket_connectable_proxy_enumerate (GSocketConnectable *connectable);
+
+GLIB_AVAILABLE_IN_2_48
+gchar                    *g_socket_connectable_to_string (GSocketConnectable *connectable);
+
+G_END_DECLS
+
+
+#endif /* __G_SOCKET_CONNECTABLE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
+ * Copyright © 2009 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Kellner <gicmo@gnome.org>
+ *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
+ *          Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_CONNECTION_H__
+#define __G_SOCKET_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+/*
+ * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
+ * Copyright © 2009 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Kellner <gicmo@gnome.org>
+ *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
+ *          Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SOCKET_H__
+#define __G_SOCKET_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET                                       (g_socket_get_type ())
+#define G_SOCKET(inst)                                      (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET, GSocket))
+#define G_SOCKET_CLASS(class)                               (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET, GSocketClass))
+#define G_IS_SOCKET(inst)                                   (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET))
+#define G_IS_SOCKET_CLASS(class)                            (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET))
+#define G_SOCKET_GET_CLASS(inst)                            (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET, GSocketClass))
+
+typedef struct _GSocketPrivate                              GSocketPrivate;
+typedef struct _GSocketClass                                GSocketClass;
+
+struct _GSocketClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+  void (*_g_reserved7) (void);
+  void (*_g_reserved8) (void);
+  void (*_g_reserved9) (void);
+  void (*_g_reserved10) (void);
+};
+
+struct _GSocket
+{
+  GObject parent_instance;
+  GSocketPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                  g_socket_get_type                (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GSocket *              g_socket_new                     (GSocketFamily            family,
+							 GSocketType              type,
+							 GSocketProtocol          protocol,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+GSocket *              g_socket_new_from_fd             (gint                     fd,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+int                    g_socket_get_fd                  (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GSocketFamily          g_socket_get_family              (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GSocketType            g_socket_get_socket_type         (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GSocketProtocol        g_socket_get_protocol            (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress *       g_socket_get_local_address       (GSocket                 *socket,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress *       g_socket_get_remote_address      (GSocket                 *socket,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+void                   g_socket_set_blocking            (GSocket                 *socket,
+							 gboolean                 blocking);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_get_blocking            (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+void                   g_socket_set_keepalive           (GSocket                 *socket,
+							 gboolean                 keepalive);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_get_keepalive           (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+gint                   g_socket_get_listen_backlog      (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+void                   g_socket_set_listen_backlog      (GSocket                 *socket,
+							 gint                     backlog);
+GLIB_AVAILABLE_IN_ALL
+guint                  g_socket_get_timeout             (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+void                   g_socket_set_timeout             (GSocket                 *socket,
+							 guint                    timeout);
+
+GLIB_AVAILABLE_IN_2_32
+guint                  g_socket_get_ttl                 (GSocket                 *socket);
+GLIB_AVAILABLE_IN_2_32
+void                   g_socket_set_ttl                 (GSocket                 *socket,
+                                                         guint                    ttl);
+
+GLIB_AVAILABLE_IN_2_32
+gboolean               g_socket_get_broadcast           (GSocket                 *socket);
+GLIB_AVAILABLE_IN_2_32
+void                   g_socket_set_broadcast           (GSocket                 *socket,
+                                                         gboolean		  broadcast);
+
+GLIB_AVAILABLE_IN_2_32
+gboolean               g_socket_get_multicast_loopback  (GSocket                 *socket);
+GLIB_AVAILABLE_IN_2_32
+void                   g_socket_set_multicast_loopback  (GSocket                 *socket,
+                                                         gboolean		  loopback);
+GLIB_AVAILABLE_IN_2_32
+guint                  g_socket_get_multicast_ttl       (GSocket                 *socket);
+GLIB_AVAILABLE_IN_2_32
+void                   g_socket_set_multicast_ttl       (GSocket                 *socket,
+                                                         guint                    ttl);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_is_connected            (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_bind                    (GSocket                 *socket,
+							 GSocketAddress          *address,
+							 gboolean                 allow_reuse,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_2_32
+gboolean               g_socket_join_multicast_group    (GSocket                 *socket,
+                                                         GInetAddress            *group,
+                                                         gboolean                 source_specific,
+                                                         const gchar             *iface,
+                                                         GError                 **error);
+GLIB_AVAILABLE_IN_2_32
+gboolean               g_socket_leave_multicast_group   (GSocket                 *socket,
+                                                         GInetAddress            *group,
+                                                         gboolean                 source_specific,
+                                                         const gchar             *iface,
+                                                         GError                 **error);
+GLIB_AVAILABLE_IN_2_56
+gboolean               g_socket_join_multicast_group_ssm    (GSocket                 *socket,
+                                                             GInetAddress            *group,
+                                                             GInetAddress            *source_specific,
+                                                             const gchar             *iface,
+                                                             GError                 **error);
+GLIB_AVAILABLE_IN_2_56
+gboolean               g_socket_leave_multicast_group_ssm   (GSocket                 *socket,
+                                                             GInetAddress            *group,
+                                                             GInetAddress            *source_specific,
+                                                             const gchar             *iface,
+                                                             GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_connect                 (GSocket                 *socket,
+							 GSocketAddress          *address,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_check_connect_result    (GSocket                 *socket,
+							 GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_get_available_bytes     (GSocket                 *socket);
+
+GLIB_AVAILABLE_IN_ALL
+GIOCondition           g_socket_condition_check         (GSocket                 *socket,
+							 GIOCondition             condition);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_condition_wait          (GSocket                 *socket,
+							 GIOCondition             condition,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_2_32
+gboolean               g_socket_condition_timed_wait    (GSocket                 *socket,
+							 GIOCondition             condition,
+							 gint64                   timeout_us,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+GSocket *              g_socket_accept                  (GSocket                 *socket,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_listen                  (GSocket                 *socket,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_receive                 (GSocket                 *socket,
+							 gchar                   *buffer,
+							 gsize                    size,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_receive_from            (GSocket                 *socket,
+							 GSocketAddress         **address,
+							 gchar                   *buffer,
+							 gsize                    size,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_send                    (GSocket                 *socket,
+							 const gchar             *buffer,
+							 gsize                    size,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_send_to                 (GSocket                 *socket,
+							 GSocketAddress          *address,
+							 const gchar             *buffer,
+							 gsize                    size,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_receive_message         (GSocket                 *socket,
+							 GSocketAddress         **address,
+							 GInputVector            *vectors,
+							 gint                     num_vectors,
+							 GSocketControlMessage ***messages,
+							 gint                    *num_messages,
+							 gint                    *flags,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_send_message            (GSocket                 *socket,
+							 GSocketAddress          *address,
+							 GOutputVector           *vectors,
+							 gint                     num_vectors,
+							 GSocketControlMessage  **messages,
+							 gint                     num_messages,
+							 gint                     flags,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+
+GLIB_AVAILABLE_IN_2_48
+gint                   g_socket_receive_messages        (GSocket                 *socket,
+                                                         GInputMessage           *messages,
+                                                         guint                    num_messages,
+                                                         gint                     flags,
+                                                         GCancellable            *cancellable,
+                                                         GError                 **error);
+GLIB_AVAILABLE_IN_2_44
+gint                   g_socket_send_messages           (GSocket                 *socket,
+							 GOutputMessage          *messages,
+							 guint                    num_messages,
+							 gint                     flags,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_close                   (GSocket                 *socket,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_shutdown                (GSocket                 *socket,
+							 gboolean                 shutdown_read,
+							 gboolean                 shutdown_write,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_is_closed               (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GSource *              g_socket_create_source           (GSocket                 *socket,
+							 GIOCondition             condition,
+							 GCancellable            *cancellable);
+GLIB_AVAILABLE_IN_ALL
+gboolean               g_socket_speaks_ipv4             (GSocket                 *socket);
+GLIB_AVAILABLE_IN_ALL
+GCredentials          *g_socket_get_credentials         (GSocket                 *socket,
+                                                         GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_receive_with_blocking   (GSocket                 *socket,
+							 gchar                   *buffer,
+							 gsize                    size,
+							 gboolean                 blocking,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_ALL
+gssize                 g_socket_send_with_blocking      (GSocket                 *socket,
+							 const gchar             *buffer,
+							 gsize                    size,
+							 gboolean                 blocking,
+							 GCancellable            *cancellable,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_2_60
+GPollableReturn        g_socket_send_message_with_timeout (GSocket                *socket,
+							   GSocketAddress         *address,
+							   const GOutputVector    *vectors,
+							   gint                    num_vectors,
+							   GSocketControlMessage **messages,
+							   gint                    num_messages,
+							   gint                    flags,
+							   gint64                  timeout_us,
+							   gsize                  *bytes_written,
+							   GCancellable           *cancellable,
+							   GError                **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean               g_socket_get_option              (GSocket                 *socket,
+							 gint                     level,
+							 gint                     optname,
+							 gint                    *value,
+							 GError                 **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean               g_socket_set_option              (GSocket                 *socket,
+							 gint                     level,
+							 gint                     optname,
+							 gint                     value,
+							 GError                 **error);
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_H__ */
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CONNECTION                            (g_socket_connection_get_type ())
+#define G_SOCKET_CONNECTION(inst)                           (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_CONNECTION, GSocketConnection))
+#define G_SOCKET_CONNECTION_CLASS(class)                    (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_CONNECTION, GSocketConnectionClass))
+#define G_IS_SOCKET_CONNECTION(inst)                        (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_CONNECTION))
+#define G_IS_SOCKET_CONNECTION_CLASS(class)                 (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_CONNECTION))
+#define G_SOCKET_CONNECTION_GET_CLASS(inst)                 (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_CONNECTION, GSocketConnectionClass))
+
+typedef struct _GSocketConnectionPrivate                    GSocketConnectionPrivate;
+typedef struct _GSocketConnectionClass                      GSocketConnectionClass;
+
+struct _GSocketConnectionClass
+{
+  GIOStreamClass parent_class;
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+};
+
+struct _GSocketConnection
+{
+  GIOStream parent_instance;
+  GSocketConnectionPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType              g_socket_connection_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean           g_socket_connection_is_connected              (GSocketConnection  *connection);
+GLIB_AVAILABLE_IN_2_32
+gboolean           g_socket_connection_connect                   (GSocketConnection  *connection,
+								  GSocketAddress     *address,
+								  GCancellable       *cancellable,
+								  GError            **error);
+GLIB_AVAILABLE_IN_2_32
+void               g_socket_connection_connect_async             (GSocketConnection  *connection,
+								  GSocketAddress     *address,
+								  GCancellable       *cancellable,
+								  GAsyncReadyCallback callback,
+								  gpointer            user_data);
+GLIB_AVAILABLE_IN_2_32
+gboolean           g_socket_connection_connect_finish            (GSocketConnection  *connection,
+								  GAsyncResult       *result,
+								  GError            **error);
+
+GLIB_AVAILABLE_IN_ALL
+GSocket           *g_socket_connection_get_socket                (GSocketConnection  *connection);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress    *g_socket_connection_get_local_address         (GSocketConnection  *connection,
+								  GError            **error);
+GLIB_AVAILABLE_IN_ALL
+GSocketAddress    *g_socket_connection_get_remote_address        (GSocketConnection  *connection,
+								  GError            **error);
+
+GLIB_AVAILABLE_IN_ALL
+void               g_socket_connection_factory_register_type     (GType               g_type,
+								  GSocketFamily       family,
+								  GSocketType         type,
+								  gint                protocol);
+GLIB_AVAILABLE_IN_ALL
+GType              g_socket_connection_factory_lookup_type       (GSocketFamily       family,
+								  GSocketType         type,
+								  gint                protocol_id);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *g_socket_connection_factory_create_connection (GSocket            *socket);
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_CONNECTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2009 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_SOCKET_CONTROL_MESSAGE_H__
+#define __G_SOCKET_CONTROL_MESSAGE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_CONTROL_MESSAGE                       (g_socket_control_message_get_type ())
+#define G_SOCKET_CONTROL_MESSAGE(inst)                      (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_CONTROL_MESSAGE,                          \
+                                                             GSocketControlMessage))
+#define G_SOCKET_CONTROL_MESSAGE_CLASS(class)               (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_CONTROL_MESSAGE,                          \
+                                                             GSocketControlMessageClass))
+#define G_IS_SOCKET_CONTROL_MESSAGE(inst)                   (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_CONTROL_MESSAGE))
+#define G_IS_SOCKET_CONTROL_MESSAGE_CLASS(class)            (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_CONTROL_MESSAGE))
+#define G_SOCKET_CONTROL_MESSAGE_GET_CLASS(inst)            (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_CONTROL_MESSAGE,                          \
+                                                             GSocketControlMessageClass))
+
+typedef struct _GSocketControlMessagePrivate                GSocketControlMessagePrivate;
+typedef struct _GSocketControlMessageClass                  GSocketControlMessageClass;
+
+/**
+ * GSocketControlMessageClass:
+ * @get_size: gets the size of the message.
+ * @get_level: gets the protocol of the message.
+ * @get_type: gets the protocol specific type of the message.
+ * @serialize: Writes out the message data.
+ * @deserialize: Tries to deserialize a message.
+ *
+ * Class structure for #GSocketControlMessage.
+ **/
+
+struct _GSocketControlMessageClass
+{
+  GObjectClass parent_class;
+
+  gsize                  (* get_size)  (GSocketControlMessage  *message);
+  int                    (* get_level) (GSocketControlMessage  *message);
+  int                    (* get_type)  (GSocketControlMessage  *message);
+  void                   (* serialize) (GSocketControlMessage  *message,
+					gpointer                data);
+  GSocketControlMessage *(* deserialize) (int                   level,
+					  int                   type,
+					  gsize                 size,
+					  gpointer              data);
+
+  /*< private >*/
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+};
+
+struct _GSocketControlMessage
+{
+  GObject parent_instance;
+  GSocketControlMessagePrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                  g_socket_control_message_get_type     (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+gsize                  g_socket_control_message_get_size     (GSocketControlMessage *message);
+GLIB_AVAILABLE_IN_ALL
+int                    g_socket_control_message_get_level    (GSocketControlMessage *message);
+GLIB_AVAILABLE_IN_ALL
+int                    g_socket_control_message_get_msg_type (GSocketControlMessage *message);
+GLIB_AVAILABLE_IN_ALL
+void                   g_socket_control_message_serialize    (GSocketControlMessage *message,
+							      gpointer               data);
+GLIB_AVAILABLE_IN_ALL
+GSocketControlMessage *g_socket_control_message_deserialize  (int                    level,
+							      int                    type,
+							      gsize                  size,
+							      gpointer               data);
+
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_CONTROL_MESSAGE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2008 Christian Kellner, Samuel Cormier-Iijima
+ * Copyright © 2009 Codethink Limited
+ * Copyright © 2009 Red Hat, Inc
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Christian Kellner <gicmo@gnome.org>
+ *          Samuel Cormier-Iijima <sciyoshi@gmail.com>
+ *          Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_LISTENER_H__
+#define __G_SOCKET_LISTENER_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_LISTENER                              (g_socket_listener_get_type ())
+#define G_SOCKET_LISTENER(inst)                             (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_LISTENER, GSocketListener))
+#define G_SOCKET_LISTENER_CLASS(class)                      (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_LISTENER, GSocketListenerClass))
+#define G_IS_SOCKET_LISTENER(inst)                          (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_LISTENER))
+#define G_IS_SOCKET_LISTENER_CLASS(class)                   (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_LISTENER))
+#define G_SOCKET_LISTENER_GET_CLASS(inst)                   (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_LISTENER, GSocketListenerClass))
+
+typedef struct _GSocketListenerPrivate                      GSocketListenerPrivate;
+typedef struct _GSocketListenerClass                        GSocketListenerClass;
+
+/**
+ * GSocketListenerClass:
+ * @changed: virtual method called when the set of socket listened to changes
+ *
+ * Class structure for #GSocketListener.
+ **/
+struct _GSocketListenerClass
+{
+  GObjectClass parent_class;
+
+  void (* changed) (GSocketListener *listener);
+
+  void (* event) (GSocketListener      *listener,
+                  GSocketListenerEvent  event,
+                  GSocket              *socket);
+
+  /* Padding for future expansion */
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+};
+
+struct _GSocketListener
+{
+  GObject parent_instance;
+  GSocketListenerPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_socket_listener_get_type                      (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketListener *       g_socket_listener_new                           (void);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_listener_set_backlog                   (GSocketListener     *listener,
+									 int                  listen_backlog);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_socket_listener_add_socket                    (GSocketListener     *listener,
+                                                                         GSocket             *socket,
+									 GObject             *source_object,
+									 GError             **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_socket_listener_add_address                   (GSocketListener     *listener,
+                                                                         GSocketAddress      *address,
+									 GSocketType          type,
+									 GSocketProtocol      protocol,
+									 GObject             *source_object,
+                                                                         GSocketAddress     **effective_address,
+									 GError             **error);
+GLIB_AVAILABLE_IN_ALL
+gboolean                g_socket_listener_add_inet_port                 (GSocketListener     *listener,
+                                                                         guint16              port,
+									 GObject             *source_object,
+									 GError             **error);
+GLIB_AVAILABLE_IN_ALL
+guint16                 g_socket_listener_add_any_inet_port             (GSocketListener     *listener,
+									 GObject             *source_object,
+									 GError             **error);
+
+GLIB_AVAILABLE_IN_ALL
+GSocket *               g_socket_listener_accept_socket                 (GSocketListener      *listener,
+									 GObject             **source_object,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_listener_accept_socket_async           (GSocketListener      *listener,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+GSocket *               g_socket_listener_accept_socket_finish          (GSocketListener      *listener,
+                                                                         GAsyncResult         *result,
+									 GObject             **source_object,
+                                                                         GError              **error);
+
+
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_listener_accept                        (GSocketListener      *listener,
+									 GObject             **source_object,
+                                                                         GCancellable         *cancellable,
+                                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_listener_accept_async                  (GSocketListener      *listener,
+                                                                         GCancellable         *cancellable,
+                                                                         GAsyncReadyCallback   callback,
+                                                                         gpointer              user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *     g_socket_listener_accept_finish                 (GSocketListener      *listener,
+                                                                         GAsyncResult         *result,
+									 GObject             **source_object,
+                                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                    g_socket_listener_close                         (GSocketListener      *listener);
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_LISTENER_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2009 Codethink Limited
+ * Copyright © 2009 Red Hat, Inc
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_SOCKET_SERVICE_H__
+#define __G_SOCKET_SERVICE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SOCKET_SERVICE                               (g_socket_service_get_type ())
+#define G_SOCKET_SERVICE(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_SOCKET_SERVICE, GSocketService))
+#define G_SOCKET_SERVICE_CLASS(class)                       (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_SOCKET_SERVICE, GSocketServiceClass))
+#define G_IS_SOCKET_SERVICE(inst)                           (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_SOCKET_SERVICE))
+#define G_IS_SOCKET_SERVICE_CLASS(class)                    (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_SOCKET_SERVICE))
+#define G_SOCKET_SERVICE_GET_CLASS(inst)                    (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_SOCKET_SERVICE, GSocketServiceClass))
+
+typedef struct _GSocketServicePrivate                       GSocketServicePrivate;
+typedef struct _GSocketServiceClass                         GSocketServiceClass;
+
+/**
+ * GSocketServiceClass:
+ * @incomming: signal emitted when new connections are accepted
+ *
+ * Class structure for #GSocketService.
+ */
+struct _GSocketServiceClass
+{
+  GSocketListenerClass parent_class;
+
+  gboolean (* incoming) (GSocketService    *service,
+                         GSocketConnection *connection,
+			 GObject           *source_object);
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+};
+
+struct _GSocketService
+{
+  GSocketListener parent_instance;
+  GSocketServicePrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType           g_socket_service_get_type  (void);
+
+GLIB_AVAILABLE_IN_ALL
+GSocketService *g_socket_service_new       (void);
+GLIB_AVAILABLE_IN_ALL
+void            g_socket_service_start     (GSocketService *service);
+GLIB_AVAILABLE_IN_ALL
+void            g_socket_service_stop      (GSocketService *service);
+GLIB_AVAILABLE_IN_ALL
+gboolean        g_socket_service_is_active (GSocketService *service);
+
+
+G_END_DECLS
+
+#endif /* __G_SOCKET_SERVICE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2008 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_SRV_TARGET_H__
+#define __G_SRV_TARGET_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+GLIB_AVAILABLE_IN_ALL
+GType g_srv_target_get_type (void) G_GNUC_CONST;
+#define G_TYPE_SRV_TARGET (g_srv_target_get_type ())
+
+GLIB_AVAILABLE_IN_ALL
+GSrvTarget  *g_srv_target_new          (const gchar *hostname,
+				        guint16      port,
+				        guint16      priority,
+				        guint16      weight);
+GLIB_AVAILABLE_IN_ALL
+GSrvTarget  *g_srv_target_copy         (GSrvTarget  *target);
+GLIB_AVAILABLE_IN_ALL
+void         g_srv_target_free         (GSrvTarget  *target);
+
+GLIB_AVAILABLE_IN_ALL
+const gchar *g_srv_target_get_hostname (GSrvTarget  *target);
+GLIB_AVAILABLE_IN_ALL
+guint16      g_srv_target_get_port     (GSrvTarget  *target);
+GLIB_AVAILABLE_IN_ALL
+guint16      g_srv_target_get_priority (GSrvTarget  *target);
+GLIB_AVAILABLE_IN_ALL
+guint16      g_srv_target_get_weight   (GSrvTarget  *target);
+
+GLIB_AVAILABLE_IN_ALL
+GList       *g_srv_target_list_sort    (GList       *targets);
+
+G_END_DECLS
+
+#endif /* __G_SRV_TARGET_H__ */
+
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright 2010, 2013 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_SIMPLE_PROXY_RESOLVER_H__
+#define __G_SIMPLE_PROXY_RESOLVER_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SIMPLE_PROXY_RESOLVER         (g_simple_proxy_resolver_get_type ())
+#define G_SIMPLE_PROXY_RESOLVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolver))
+#define G_SIMPLE_PROXY_RESOLVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
+#define G_IS_SIMPLE_PROXY_RESOLVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SIMPLE_PROXY_RESOLVER))
+#define G_IS_SIMPLE_PROXY_RESOLVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_SIMPLE_PROXY_RESOLVER))
+#define G_SIMPLE_PROXY_RESOLVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_SIMPLE_PROXY_RESOLVER, GSimpleProxyResolverClass))
+
+/**
+ * GSimpleProxyResolver:
+ *
+ * A #GProxyResolver implementation for using a fixed set of proxies.
+ **/
+typedef struct _GSimpleProxyResolver GSimpleProxyResolver;
+typedef struct _GSimpleProxyResolverPrivate GSimpleProxyResolverPrivate;
+typedef struct _GSimpleProxyResolverClass GSimpleProxyResolverClass;
+
+struct _GSimpleProxyResolver
+{
+  GObject parent_instance;
+
+  /*< private >*/
+  GSimpleProxyResolverPrivate *priv;
+};
+
+struct _GSimpleProxyResolverClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+};
+
+GLIB_AVAILABLE_IN_2_36
+GType           g_simple_proxy_resolver_get_type          (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_36
+GProxyResolver *g_simple_proxy_resolver_new               (const gchar           *default_proxy,
+                                                           gchar                **ignore_hosts);
+
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_default_proxy (GSimpleProxyResolver  *resolver,
+                                                           const gchar           *default_proxy);
+
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_ignore_hosts  (GSimpleProxyResolver  *resolver,
+                                                           gchar                **ignore_hosts);
+
+GLIB_AVAILABLE_IN_2_36
+void            g_simple_proxy_resolver_set_uri_proxy     (GSimpleProxyResolver  *resolver,
+                                                           const gchar           *uri_scheme,
+                                                           const gchar           *proxy);
+
+G_END_DECLS
+
+#endif /* __G_SIMPLE_PROXY_RESOLVER_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright 2011 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TASK_H__
+#define __G_TASK_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TASK         (g_task_get_type ())
+#define G_TASK(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_TASK, GTask))
+#define G_TASK_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_TASK, GTaskClass))
+#define G_IS_TASK(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_TASK))
+#define G_IS_TASK_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_TASK))
+#define G_TASK_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_TASK, GTaskClass))
+
+typedef struct _GTaskClass   GTaskClass;
+
+GLIB_AVAILABLE_IN_2_36
+GType         g_task_get_type              (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_36
+GTask        *g_task_new                   (gpointer             source_object,
+                                            GCancellable        *cancellable,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_report_error          (gpointer             source_object,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data,
+                                            gpointer             source_tag,
+                                            GError              *error);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_report_new_error      (gpointer             source_object,
+                                            GAsyncReadyCallback  callback,
+                                            gpointer             callback_data,
+                                            gpointer             source_tag,
+                                            GQuark               domain,
+                                            gint                 code,
+                                            const char          *format,
+                                            ...) G_GNUC_PRINTF(7, 8);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_task_data         (GTask               *task,
+                                            gpointer             task_data,
+                                            GDestroyNotify       task_data_destroy);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_priority          (GTask               *task,
+                                            gint                 priority);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_check_cancellable (GTask               *task,
+                                            gboolean             check_cancellable);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_set_source_tag        (GTask               *task,
+                                            gpointer             source_tag);
+GLIB_AVAILABLE_IN_2_60
+void          g_task_set_name              (GTask               *task,
+                                            const gchar         *name);
+
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_source_object     (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_task_data         (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gint          g_task_get_priority          (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+GMainContext *g_task_get_context           (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+GCancellable *g_task_get_cancellable       (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_get_check_cancellable (GTask               *task);
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_get_source_tag        (GTask               *task);
+GLIB_AVAILABLE_IN_2_60
+const gchar  *g_task_get_name              (GTask               *task);
+
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_is_valid              (gpointer             result,
+                                            gpointer             source_object);
+
+
+typedef void (*GTaskThreadFunc)           (GTask           *task,
+                                           gpointer         source_object,
+                                           gpointer         task_data,
+                                           GCancellable    *cancellable);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_run_in_thread        (GTask           *task,
+                                           GTaskThreadFunc  task_func);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_run_in_thread_sync   (GTask           *task,
+                                           GTaskThreadFunc  task_func);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_set_return_on_cancel (GTask           *task,
+                                           gboolean         return_on_cancel);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_get_return_on_cancel (GTask           *task);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_attach_source        (GTask           *task,
+                                           GSource         *source,
+                                           GSourceFunc      callback);
+
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_pointer            (GTask           *task,
+                                                gpointer         result,
+                                                GDestroyNotify   result_destroy);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_boolean            (GTask           *task,
+                                                gboolean         result);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_int                (GTask           *task,
+                                                gssize           result);
+
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_error              (GTask           *task,
+                                                GError          *error);
+GLIB_AVAILABLE_IN_2_36
+void          g_task_return_new_error          (GTask           *task,
+                                                GQuark           domain,
+                                                gint             code,
+                                                const char      *format,
+                                                ...) G_GNUC_PRINTF (4, 5);
+
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_return_error_if_cancelled (GTask           *task);
+
+GLIB_AVAILABLE_IN_2_36
+gpointer      g_task_propagate_pointer         (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_propagate_boolean         (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gssize        g_task_propagate_int             (GTask           *task,
+                                                GError         **error);
+GLIB_AVAILABLE_IN_2_36
+gboolean      g_task_had_error                 (GTask           *task);
+GLIB_AVAILABLE_IN_2_44
+gboolean      g_task_get_completed             (GTask           *task);
+
+G_END_DECLS
+
+#endif /* __G_TASK_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2012 Colin Walters <walters@verbum.org>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Colin Walters <walters@verbum.org>
+ */
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+#ifndef __G_SUBPROCESS_H__
+#define __G_SUBPROCESS_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SUBPROCESS         (g_subprocess_get_type ())
+#define G_SUBPROCESS(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SUBPROCESS, GSubprocess))
+#define G_IS_SUBPROCESS(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SUBPROCESS))
+
+GLIB_AVAILABLE_IN_2_40
+GType            g_subprocess_get_type                  (void) G_GNUC_CONST;
+
+/**** Core API ****/
+
+GLIB_AVAILABLE_IN_2_40
+GSubprocess *    g_subprocess_new                       (GSubprocessFlags        flags,
+                                                         GError                **error,
+                                                         const gchar            *argv0,
+                                                         ...) G_GNUC_NULL_TERMINATED;
+GLIB_AVAILABLE_IN_2_40
+GSubprocess *    g_subprocess_newv                      (const gchar * const  *argv,
+                                                         GSubprocessFlags      flags,
+                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_2_40
+GOutputStream *  g_subprocess_get_stdin_pipe            (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+GInputStream *   g_subprocess_get_stdout_pipe           (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+GInputStream *   g_subprocess_get_stderr_pipe           (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+const gchar *    g_subprocess_get_identifier            (GSubprocess          *subprocess);
+
+#ifdef G_OS_UNIX
+GLIB_AVAILABLE_IN_2_40
+void             g_subprocess_send_signal               (GSubprocess          *subprocess,
+                                                         gint                  signal_num);
+#endif
+
+GLIB_AVAILABLE_IN_2_40
+void             g_subprocess_force_exit                (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_wait                      (GSubprocess          *subprocess,
+                                                         GCancellable         *cancellable,
+                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_2_40
+void             g_subprocess_wait_async                (GSubprocess          *subprocess,
+                                                         GCancellable         *cancellable,
+                                                         GAsyncReadyCallback   callback,
+                                                         gpointer              user_data);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_wait_finish               (GSubprocess          *subprocess,
+                                                         GAsyncResult         *result,
+                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_wait_check                (GSubprocess          *subprocess,
+                                                         GCancellable         *cancellable,
+                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_2_40
+void             g_subprocess_wait_check_async          (GSubprocess          *subprocess,
+                                                         GCancellable         *cancellable,
+                                                         GAsyncReadyCallback   callback,
+                                                         gpointer              user_data);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_wait_check_finish         (GSubprocess          *subprocess,
+                                                         GAsyncResult         *result,
+                                                         GError              **error);
+
+
+GLIB_AVAILABLE_IN_2_40
+gint             g_subprocess_get_status                (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_get_successful            (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_get_if_exited             (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gint             g_subprocess_get_exit_status           (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_get_if_signaled           (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gint             g_subprocess_get_term_sig              (GSubprocess          *subprocess);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_communicate               (GSubprocess          *subprocess,
+                                                         GBytes               *stdin_buf,
+                                                         GCancellable         *cancellable,
+                                                         GBytes              **stdout_buf,
+                                                         GBytes              **stderr_buf,
+                                                         GError              **error);
+GLIB_AVAILABLE_IN_2_40
+void            g_subprocess_communicate_async          (GSubprocess          *subprocess,
+                                                         GBytes               *stdin_buf,
+                                                         GCancellable         *cancellable,
+                                                         GAsyncReadyCallback   callback,
+                                                         gpointer              user_data);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean        g_subprocess_communicate_finish         (GSubprocess          *subprocess,
+                                                         GAsyncResult         *result,
+                                                         GBytes              **stdout_buf,
+                                                         GBytes              **stderr_buf,
+                                                         GError              **error);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean         g_subprocess_communicate_utf8          (GSubprocess          *subprocess,
+                                                         const char           *stdin_buf,
+                                                         GCancellable         *cancellable,
+                                                         char                **stdout_buf,
+                                                         char                **stderr_buf,
+                                                         GError              **error);
+GLIB_AVAILABLE_IN_2_40
+void            g_subprocess_communicate_utf8_async     (GSubprocess          *subprocess,
+                                                         const char           *stdin_buf,
+                                                         GCancellable         *cancellable,
+                                                         GAsyncReadyCallback   callback,
+                                                         gpointer              user_data);
+
+GLIB_AVAILABLE_IN_2_40
+gboolean        g_subprocess_communicate_utf8_finish    (GSubprocess          *subprocess,
+                                                         GAsyncResult         *result,
+                                                         char                **stdout_buf,
+                                                         char                **stderr_buf,
+                                                         GError              **error);
+
+G_END_DECLS
+
+#endif /* __G_SUBPROCESS_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2012,2013 Colin Walters <walters@verbum.org>
+ * Copyright © 2012,2013 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ * Author: Colin Walters <walters@verbum.org>
+ */
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+#ifndef __G_SUBPROCESS_LAUNCHER_H__
+#define __G_SUBPROCESS_LAUNCHER_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_SUBPROCESS_LAUNCHER         (g_subprocess_launcher_get_type ())
+#define G_SUBPROCESS_LAUNCHER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_SUBPROCESS_LAUNCHER, GSubprocessLauncher))
+#define G_IS_SUBPROCESS_LAUNCHER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_SUBPROCESS_LAUNCHER))
+
+GLIB_AVAILABLE_IN_2_40
+GType                   g_subprocess_launcher_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_40
+GSubprocessLauncher *   g_subprocess_launcher_new                       (GSubprocessFlags       flags);
+
+GLIB_AVAILABLE_IN_2_40
+GSubprocess *           g_subprocess_launcher_spawn                     (GSubprocessLauncher   *self,
+                                                                         GError               **error,
+                                                                         const gchar           *argv0,
+                                                                         ...) G_GNUC_NULL_TERMINATED;
+
+GLIB_AVAILABLE_IN_2_40
+GSubprocess *           g_subprocess_launcher_spawnv                    (GSubprocessLauncher   *self,
+                                                                         const gchar * const   *argv,
+                                                                         GError               **error);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_environ               (GSubprocessLauncher   *self,
+                                                                         gchar                **env);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_setenv                    (GSubprocessLauncher   *self,
+                                                                         const gchar           *variable,
+                                                                         const gchar           *value,
+                                                                         gboolean               overwrite);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_unsetenv                  (GSubprocessLauncher *self,
+                                                                         const gchar         *variable);
+
+GLIB_AVAILABLE_IN_2_40
+const gchar *           g_subprocess_launcher_getenv                    (GSubprocessLauncher   *self,
+                                                                         const gchar           *variable);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_cwd                   (GSubprocessLauncher   *self,
+                                                                         const gchar           *cwd);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_flags                 (GSubprocessLauncher   *self,
+                                                                         GSubprocessFlags       flags);
+
+/* Extended I/O control, only available on UNIX */
+#ifdef G_OS_UNIX
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_stdin_file_path       (GSubprocessLauncher   *self,
+                                                                         const gchar           *path);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_take_stdin_fd             (GSubprocessLauncher   *self,
+                                                                         gint                   fd);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_stdout_file_path      (GSubprocessLauncher   *self,
+                                                                         const gchar           *path);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_take_stdout_fd            (GSubprocessLauncher   *self,
+                                                                         gint                   fd);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_stderr_file_path      (GSubprocessLauncher   *self,
+                                                                         const gchar           *path);
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_take_stderr_fd            (GSubprocessLauncher   *self,
+                                                                         gint                   fd);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_take_fd                   (GSubprocessLauncher   *self,
+                                                                         gint                   source_fd,
+                                                                         gint                   target_fd);
+
+/* Child setup, only available on UNIX */
+GLIB_AVAILABLE_IN_2_40
+void                    g_subprocess_launcher_set_child_setup           (GSubprocessLauncher   *self,
+                                                                         GSpawnChildSetupFunc   child_setup,
+                                                                         gpointer               user_data,
+                                                                         GDestroyNotify         destroy_notify);
+#endif
+
+G_END_DECLS
+
+#endif /* __G_SUBPROCESS_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2008, 2009 Codethink Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_TCP_CONNECTION_H__
+#define __G_TCP_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TCP_CONNECTION                               (g_tcp_connection_get_type ())
+#define G_TCP_CONNECTION(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_TCP_CONNECTION, GTcpConnection))
+#define G_TCP_CONNECTION_CLASS(class)                       (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_TCP_CONNECTION, GTcpConnectionClass))
+#define G_IS_TCP_CONNECTION(inst)                           (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_TCP_CONNECTION))
+#define G_IS_TCP_CONNECTION_CLASS(class)                    (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_TCP_CONNECTION))
+#define G_TCP_CONNECTION_GET_CLASS(inst)                    (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_TCP_CONNECTION, GTcpConnectionClass))
+
+typedef struct _GTcpConnectionPrivate                       GTcpConnectionPrivate;
+typedef struct _GTcpConnectionClass                         GTcpConnectionClass;
+
+struct _GTcpConnectionClass
+{
+  GSocketConnectionClass parent_class;
+};
+
+struct _GTcpConnection
+{
+  GSocketConnection parent_instance;
+  GTcpConnectionPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType    g_tcp_connection_get_type                (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+void     g_tcp_connection_set_graceful_disconnect (GTcpConnection *connection,
+						   gboolean        graceful_disconnect);
+GLIB_AVAILABLE_IN_ALL
+gboolean g_tcp_connection_get_graceful_disconnect (GTcpConnection *connection);
+
+G_END_DECLS
+
+#endif /* __G_TCP_CONNECTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ * Copyright © 2010 Collabora Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Nicolas Dufresne <nicolas.dufresne@collabora.co.uk>
+ *
+ */
+
+#ifndef __G_TCP_WRAPPER_CONNECTION_H__
+#define __G_TCP_WRAPPER_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TCP_WRAPPER_CONNECTION            (g_tcp_wrapper_connection_get_type ())
+#define G_TCP_WRAPPER_CONNECTION(inst)           (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                  G_TYPE_TCP_WRAPPER_CONNECTION, GTcpWrapperConnection))
+#define G_TCP_WRAPPER_CONNECTION_CLASS(class)    (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                  G_TYPE_TCP_WRAPPER_CONNECTION, GTcpWrapperConnectionClass))
+#define G_IS_TCP_WRAPPER_CONNECTION(inst)        (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                  G_TYPE_TCP_WRAPPER_CONNECTION))
+#define G_IS_TCP_WRAPPER_CONNECTION_CLASS(class) (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                  G_TYPE_TCP_WRAPPER_CONNECTION))
+#define G_TCP_WRAPPER_CONNECTION_GET_CLASS(inst) (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                  G_TYPE_TCP_WRAPPER_CONNECTION, GTcpWrapperConnectionClass))
+
+typedef struct _GTcpWrapperConnectionPrivate GTcpWrapperConnectionPrivate;
+typedef struct _GTcpWrapperConnectionClass   GTcpWrapperConnectionClass;
+
+struct _GTcpWrapperConnectionClass
+{
+  GTcpConnectionClass parent_class;
+};
+
+struct _GTcpWrapperConnection
+{
+  GTcpConnection parent_instance;
+  GTcpWrapperConnectionPrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType              g_tcp_wrapper_connection_get_type (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GSocketConnection *g_tcp_wrapper_connection_new                (GIOStream             *base_io_stream,
+								GSocket               *socket);
+GLIB_AVAILABLE_IN_ALL
+GIOStream         *g_tcp_wrapper_connection_get_base_io_stream (GTcpWrapperConnection *conn);
+
+G_END_DECLS
+
+#endif /* __G_TCP_WRAPPER_CONNECTION_H__ */
+/* GIO testing utilities
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ * Copyright (C) 2012 Collabora Ltd. <http://www.collabora.co.uk/>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: David Zeuthen <davidz@redhat.com>
+ *          Xavier Claessens <xavier.claessens@collabora.co.uk>
+ */
+
+#ifndef __G_TEST_DBUS_H__
+#define __G_TEST_DBUS_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TEST_DBUS \
+    (g_test_dbus_get_type ())
+#define G_TEST_DBUS(obj) \
+    (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_TEST_DBUS, \
+        GTestDBus))
+#define G_IS_TEST_DBUS(obj) \
+    (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_TEST_DBUS))
+
+GLIB_AVAILABLE_IN_2_34
+GType          g_test_dbus_get_type        (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_34
+GTestDBus *    g_test_dbus_new             (GTestDBusFlags flags);
+
+GLIB_AVAILABLE_IN_2_34
+GTestDBusFlags g_test_dbus_get_flags       (GTestDBus     *self);
+
+GLIB_AVAILABLE_IN_2_34
+const gchar *  g_test_dbus_get_bus_address (GTestDBus     *self);
+
+GLIB_AVAILABLE_IN_2_34
+void           g_test_dbus_add_service_dir (GTestDBus     *self,
+                                            const gchar   *path);
+
+GLIB_AVAILABLE_IN_2_34
+void           g_test_dbus_up              (GTestDBus     *self);
+
+GLIB_AVAILABLE_IN_2_34
+void           g_test_dbus_stop            (GTestDBus     *self);
+
+GLIB_AVAILABLE_IN_2_34
+void           g_test_dbus_down            (GTestDBus     *self);
+
+GLIB_AVAILABLE_IN_2_34
+void           g_test_dbus_unset           (void);
+
+G_END_DECLS
+
+#endif /* __G_TEST_DBUS_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_THEMED_ICON_H__
+#define __G_THEMED_ICON_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_THEMED_ICON         (g_themed_icon_get_type ())
+#define G_THEMED_ICON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_THEMED_ICON, GThemedIcon))
+#define G_THEMED_ICON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_THEMED_ICON, GThemedIconClass))
+#define G_IS_THEMED_ICON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_THEMED_ICON))
+#define G_IS_THEMED_ICON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_THEMED_ICON))
+#define G_THEMED_ICON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_THEMED_ICON, GThemedIconClass))
+
+/**
+ * GThemedIcon:
+ *
+ * An implementation of #GIcon for themed icons.
+ **/
+typedef struct _GThemedIconClass   GThemedIconClass;
+
+GLIB_AVAILABLE_IN_ALL
+GType  g_themed_icon_get_type                   (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GIcon *g_themed_icon_new                        (const char  *iconname);
+GLIB_AVAILABLE_IN_ALL
+GIcon *g_themed_icon_new_with_default_fallbacks (const char  *iconname);
+GLIB_AVAILABLE_IN_ALL
+GIcon *g_themed_icon_new_from_names             (char       **iconnames,
+                                                 int          len);
+GLIB_AVAILABLE_IN_ALL
+void   g_themed_icon_prepend_name               (GThemedIcon *icon,
+                                                 const char  *iconname);
+GLIB_AVAILABLE_IN_ALL
+void   g_themed_icon_append_name                (GThemedIcon *icon,
+                                                 const char  *iconname);
+
+GLIB_AVAILABLE_IN_ALL
+const gchar* const * g_themed_icon_get_names     (GThemedIcon *icon);
+
+G_END_DECLS
+
+#endif /* __G_THEMED_ICON_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2009 Codethink Limited
+ * Copyright © 2009 Red Hat, Inc
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ *          Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_THREADED_SOCKET_SERVICE_H__
+#define __G_THREADED_SOCKET_SERVICE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_THREADED_SOCKET_SERVICE                      (g_threaded_socket_service_get_type ())
+#define G_THREADED_SOCKET_SERVICE(inst)                     (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_THREADED_SOCKET_SERVICE,                         \
+                                                             GThreadedSocketService))
+#define G_THREADED_SOCKET_SERVICE_CLASS(class)              (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_THREADED_SOCKET_SERVICE,                         \
+                                                             GThreadedSocketServiceClass))
+#define G_IS_THREADED_SOCKET_SERVICE(inst)                  (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_THREADED_SOCKET_SERVICE))
+#define G_IS_THREADED_SOCKET_SERVICE_CLASS(class)           (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_THREADED_SOCKET_SERVICE))
+#define G_THREADED_SOCKET_SERVICE_GET_CLASS(inst)           (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_THREADED_SOCKET_SERVICE,                         \
+                                                             GThreadedSocketServiceClass))
+
+typedef struct _GThreadedSocketServicePrivate               GThreadedSocketServicePrivate;
+typedef struct _GThreadedSocketServiceClass                 GThreadedSocketServiceClass;
+
+struct _GThreadedSocketServiceClass
+{
+  GSocketServiceClass parent_class;
+
+  gboolean (* run) (GThreadedSocketService *service,
+                    GSocketConnection      *connection,
+                    GObject                *source_object);
+
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+};
+
+struct _GThreadedSocketService
+{
+  GSocketService parent_instance;
+  GThreadedSocketServicePrivate *priv;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_threaded_socket_service_get_type              (void);
+GLIB_AVAILABLE_IN_ALL
+GSocketService *        g_threaded_socket_service_new                   (int max_threads);
+
+G_END_DECLS
+
+#endif /* __G_THREADED_SOCKET_SERVICE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Red Hat, Inc.
+ * Copyright © 2015 Collabora, Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_BACKEND_H__
+#define __G_TLS_BACKEND_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+/**
+ * G_TLS_BACKEND_EXTENSION_POINT_NAME:
+ *
+ * Extension point for TLS functionality via #GTlsBackend.
+ * See [Extending GIO][extending-gio].
+ */
+#define G_TLS_BACKEND_EXTENSION_POINT_NAME "gio-tls-backend"
+
+#define G_TYPE_TLS_BACKEND               (g_tls_backend_get_type ())
+#define G_TLS_BACKEND(obj)               (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_TLS_BACKEND, GTlsBackend))
+#define G_IS_TLS_BACKEND(obj)	         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_TLS_BACKEND))
+#define G_TLS_BACKEND_GET_INTERFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_TLS_BACKEND, GTlsBackendInterface))
+
+typedef struct _GTlsBackend          GTlsBackend;
+typedef struct _GTlsBackendInterface GTlsBackendInterface;
+
+/**
+ * GTlsBackendInterface:
+ * @g_iface: The parent interface.
+ * @supports_tls: returns whether the backend supports TLS.
+ * @supports_dtls: returns whether the backend supports DTLS
+ * @get_default_database: returns a default #GTlsDatabase instance.
+ * @get_certificate_type: returns the #GTlsCertificate implementation type
+ * @get_client_connection_type: returns the #GTlsClientConnection implementation type
+ * @get_server_connection_type: returns the #GTlsServerConnection implementation type
+ * @get_file_database_type: returns the #GTlsFileDatabase implementation type.
+ * @get_dtls_client_connection_type: returns the #GDtlsClientConnection implementation type
+ * @get_dtls_server_connection_type: returns the #GDtlsServerConnection implementation type
+ *
+ * Provides an interface for describing TLS-related types.
+ *
+ * Since: 2.28
+ */
+struct _GTlsBackendInterface
+{
+  GTypeInterface g_iface;
+
+  /* methods */
+  gboolean       ( *supports_tls)               (GTlsBackend *backend);
+  GType          ( *get_certificate_type)       (void);
+  GType          ( *get_client_connection_type) (void);
+  GType          ( *get_server_connection_type) (void);
+  GType          ( *get_file_database_type)     (void);
+  GTlsDatabase * ( *get_default_database)       (GTlsBackend *backend);
+  gboolean       ( *supports_dtls)              (GTlsBackend *backend);
+  GType          ( *get_dtls_client_connection_type) (void);
+  GType          ( *get_dtls_server_connection_type) (void);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType          g_tls_backend_get_type                   (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsBackend *  g_tls_backend_get_default                (void);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsDatabase * g_tls_backend_get_default_database       (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_2_60
+void           g_tls_backend_set_default_database       (GTlsBackend  *backend,
+                                                         GTlsDatabase *database);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean       g_tls_backend_supports_tls               (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_2_48
+gboolean       g_tls_backend_supports_dtls              (GTlsBackend *backend);
+
+GLIB_AVAILABLE_IN_ALL
+GType          g_tls_backend_get_certificate_type       (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_ALL
+GType          g_tls_backend_get_client_connection_type (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_ALL
+GType          g_tls_backend_get_server_connection_type (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_ALL
+GType          g_tls_backend_get_file_database_type     (GTlsBackend *backend);
+
+GLIB_AVAILABLE_IN_2_48
+GType          g_tls_backend_get_dtls_client_connection_type (GTlsBackend *backend);
+GLIB_AVAILABLE_IN_2_48
+GType          g_tls_backend_get_dtls_server_connection_type (GTlsBackend *backend);
+
+G_END_DECLS
+
+#endif /* __G_TLS_BACKEND_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_CERTIFICATE_H__
+#define __G_TLS_CERTIFICATE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_CERTIFICATE            (g_tls_certificate_get_type ())
+#define G_TLS_CERTIFICATE(inst)           (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_CERTIFICATE, GTlsCertificate))
+#define G_TLS_CERTIFICATE_CLASS(class)    (G_TYPE_CHECK_CLASS_CAST ((class), G_TYPE_TLS_CERTIFICATE, GTlsCertificateClass))
+#define G_IS_TLS_CERTIFICATE(inst)        (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_CERTIFICATE))
+#define G_IS_TLS_CERTIFICATE_CLASS(class) (G_TYPE_CHECK_CLASS_TYPE ((class), G_TYPE_TLS_CERTIFICATE))
+#define G_TLS_CERTIFICATE_GET_CLASS(inst) (G_TYPE_INSTANCE_GET_CLASS ((inst), G_TYPE_TLS_CERTIFICATE, GTlsCertificateClass))
+
+typedef struct _GTlsCertificateClass   GTlsCertificateClass;
+typedef struct _GTlsCertificatePrivate GTlsCertificatePrivate;
+
+struct _GTlsCertificate {
+  GObject parent_instance;
+
+  GTlsCertificatePrivate *priv;
+};
+
+struct _GTlsCertificateClass
+{
+  GObjectClass parent_class;
+
+  GTlsCertificateFlags  (* verify) (GTlsCertificate     *cert,
+				    GSocketConnectable  *identity,
+				    GTlsCertificate     *trusted_ca);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_tls_certificate_get_type           (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_certificate_new_from_pem       (const gchar         *data,
+							    gssize               length,
+							    GError             **error);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_certificate_new_from_file      (const gchar         *file,
+							    GError             **error);
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_certificate_new_from_files     (const gchar         *cert_file,
+							    const gchar         *key_file,
+							    GError             **error);
+GLIB_AVAILABLE_IN_ALL
+GList                *g_tls_certificate_list_new_from_file (const gchar         *file,
+							    GError             **error);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_certificate_get_issuer         (GTlsCertificate     *cert);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificateFlags  g_tls_certificate_verify             (GTlsCertificate     *cert,
+							    GSocketConnectable  *identity,
+							    GTlsCertificate     *trusted_ca);
+
+GLIB_AVAILABLE_IN_2_34
+gboolean              g_tls_certificate_is_same            (GTlsCertificate     *cert_one,
+                                                            GTlsCertificate     *cert_two);
+
+G_END_DECLS
+
+#endif /* __G_TLS_CERTIFICATE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_CLIENT_CONNECTION_H__
+#define __G_TLS_CLIENT_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_CONNECTION_H__
+#define __G_TLS_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_CONNECTION            (g_tls_connection_get_type ())
+#define G_TLS_CONNECTION(inst)           (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_CONNECTION, GTlsConnection))
+#define G_TLS_CONNECTION_CLASS(class)    (G_TYPE_CHECK_CLASS_CAST ((class), G_TYPE_TLS_CONNECTION, GTlsConnectionClass))
+#define G_IS_TLS_CONNECTION(inst)        (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_CONNECTION))
+#define G_IS_TLS_CONNECTION_CLASS(class) (G_TYPE_CHECK_CLASS_TYPE ((class), G_TYPE_TLS_CONNECTION))
+#define G_TLS_CONNECTION_GET_CLASS(inst) (G_TYPE_INSTANCE_GET_CLASS ((inst), G_TYPE_TLS_CONNECTION, GTlsConnectionClass))
+
+typedef struct _GTlsConnectionClass   GTlsConnectionClass;
+typedef struct _GTlsConnectionPrivate GTlsConnectionPrivate;
+
+struct _GTlsConnection {
+  GIOStream parent_instance;
+
+  GTlsConnectionPrivate *priv;
+};
+
+struct _GTlsConnectionClass
+{
+  GIOStreamClass parent_class;
+
+  /* signals */
+  gboolean          ( *accept_certificate) (GTlsConnection       *connection,
+					    GTlsCertificate      *peer_cert,
+					    GTlsCertificateFlags  errors);
+
+  /* methods */
+  gboolean ( *handshake )        (GTlsConnection       *conn,
+				  GCancellable         *cancellable,
+				  GError              **error);
+
+  void     ( *handshake_async )  (GTlsConnection       *conn,
+				  int                   io_priority,
+				  GCancellable         *cancellable,
+				  GAsyncReadyCallback   callback,
+				  gpointer              user_data);
+  gboolean ( *handshake_finish ) (GTlsConnection       *conn,
+				  GAsyncResult         *result,
+				  GError              **error);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_tls_connection_get_type                    (void) G_GNUC_CONST;
+
+GLIB_DEPRECATED
+void                  g_tls_connection_set_use_system_certdb       (GTlsConnection       *conn,
+                                                                    gboolean              use_system_certdb);
+GLIB_DEPRECATED
+gboolean              g_tls_connection_get_use_system_certdb       (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_connection_set_database                (GTlsConnection       *conn,
+								    GTlsDatabase         *database);
+GLIB_AVAILABLE_IN_ALL
+GTlsDatabase *        g_tls_connection_get_database                (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_connection_set_certificate             (GTlsConnection       *conn,
+                                                                    GTlsCertificate      *certificate);
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_connection_get_certificate             (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_connection_set_interaction             (GTlsConnection       *conn,
+                                                                    GTlsInteraction      *interaction);
+GLIB_AVAILABLE_IN_ALL
+GTlsInteraction *     g_tls_connection_get_interaction             (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate      *g_tls_connection_get_peer_certificate        (GTlsConnection       *conn);
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificateFlags  g_tls_connection_get_peer_certificate_errors (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_connection_set_require_close_notify    (GTlsConnection       *conn,
+								    gboolean              require_close_notify);
+GLIB_AVAILABLE_IN_ALL
+gboolean              g_tls_connection_get_require_close_notify    (GTlsConnection       *conn);
+
+GLIB_DEPRECATED_IN_2_60
+void                  g_tls_connection_set_rehandshake_mode        (GTlsConnection       *conn,
+								    GTlsRehandshakeMode   mode);
+GLIB_DEPRECATED_IN_2_60
+GTlsRehandshakeMode   g_tls_connection_get_rehandshake_mode        (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_2_60
+void                  g_tls_connection_set_advertised_protocols    (GTlsConnection       *conn,
+                                                                    const gchar * const  *protocols);
+
+GLIB_AVAILABLE_IN_2_60
+const gchar *         g_tls_connection_get_negotiated_protocol     (GTlsConnection       *conn);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean              g_tls_connection_handshake                   (GTlsConnection       *conn,
+								    GCancellable         *cancellable,
+								    GError              **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_connection_handshake_async             (GTlsConnection       *conn,
+								    int                   io_priority,
+								    GCancellable         *cancellable,
+								    GAsyncReadyCallback   callback,
+								    gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+gboolean              g_tls_connection_handshake_finish            (GTlsConnection       *conn,
+								    GAsyncResult         *result,
+								    GError              **error);
+
+/**
+ * G_TLS_ERROR:
+ *
+ * Error domain for TLS. Errors in this domain will be from the
+ * #GTlsError enumeration. See #GError for more information on error
+ * domains.
+ */
+#define G_TLS_ERROR (g_tls_error_quark ())
+GLIB_AVAILABLE_IN_ALL
+GQuark g_tls_error_quark (void);
+
+
+/*< protected >*/
+GLIB_AVAILABLE_IN_ALL
+gboolean              g_tls_connection_emit_accept_certificate     (GTlsConnection       *conn,
+								    GTlsCertificate      *peer_cert,
+								    GTlsCertificateFlags  errors);
+
+G_END_DECLS
+
+#endif /* __G_TLS_CONNECTION_H__ */
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_CLIENT_CONNECTION                (g_tls_client_connection_get_type ())
+#define G_TLS_CLIENT_CONNECTION(inst)               (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_CLIENT_CONNECTION, GTlsClientConnection))
+#define G_IS_TLS_CLIENT_CONNECTION(inst)            (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_CLIENT_CONNECTION))
+#define G_TLS_CLIENT_CONNECTION_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst), G_TYPE_TLS_CLIENT_CONNECTION, GTlsClientConnectionInterface))
+
+typedef struct _GTlsClientConnectionInterface GTlsClientConnectionInterface;
+
+/**
+ * GTlsClientConnectionInterface:
+ * @g_iface: The parent interface.
+ * @copy_session_state: Copies session state from one #GTlsClientConnection to another.
+ *
+ * vtable for a #GTlsClientConnection implementation.
+ *
+ * Since: 2.26
+ */
+struct _GTlsClientConnectionInterface
+{
+  GTypeInterface g_iface;
+
+  void     ( *copy_session_state )     (GTlsClientConnection       *conn,
+                                        GTlsClientConnection       *source);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_tls_client_connection_get_type             (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GIOStream *           g_tls_client_connection_new                  (GIOStream               *base_io_stream,
+								    GSocketConnectable      *server_identity,
+								    GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificateFlags  g_tls_client_connection_get_validation_flags (GTlsClientConnection    *conn);
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_client_connection_set_validation_flags (GTlsClientConnection    *conn,
+								    GTlsCertificateFlags     flags);
+GLIB_AVAILABLE_IN_ALL
+GSocketConnectable   *g_tls_client_connection_get_server_identity  (GTlsClientConnection    *conn);
+GLIB_AVAILABLE_IN_ALL
+void                  g_tls_client_connection_set_server_identity  (GTlsClientConnection    *conn,
+								    GSocketConnectable      *identity);
+GLIB_DEPRECATED_IN_2_56
+gboolean              g_tls_client_connection_get_use_ssl3         (GTlsClientConnection    *conn);
+GLIB_DEPRECATED_IN_2_56
+void                  g_tls_client_connection_set_use_ssl3         (GTlsClientConnection    *conn,
+								    gboolean                 use_ssl3);
+GLIB_AVAILABLE_IN_ALL
+GList *               g_tls_client_connection_get_accepted_cas     (GTlsClientConnection    *conn);
+
+GLIB_AVAILABLE_IN_2_46
+void                  g_tls_client_connection_copy_session_state   (GTlsClientConnection    *conn,
+                                                                    GTlsClientConnection    *source);
+
+G_END_DECLS
+
+#endif /* __G_TLS_CLIENT_CONNECTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Collabora, Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Stef Walter <stefw@collabora.co.uk>
+ */
+
+#ifndef __G_TLS_DATABASE_H__
+#define __G_TLS_DATABASE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TLS_DATABASE_PURPOSE_AUTHENTICATE_SERVER "1.3.6.1.5.5.7.3.1"
+#define G_TLS_DATABASE_PURPOSE_AUTHENTICATE_CLIENT "1.3.6.1.5.5.7.3.2"
+
+#define G_TYPE_TLS_DATABASE            (g_tls_database_get_type ())
+#define G_TLS_DATABASE(inst)           (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_DATABASE, GTlsDatabase))
+#define G_TLS_DATABASE_CLASS(class)    (G_TYPE_CHECK_CLASS_CAST ((class), G_TYPE_TLS_DATABASE, GTlsDatabaseClass))
+#define G_IS_TLS_DATABASE(inst)        (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_DATABASE))
+#define G_IS_TLS_DATABASE_CLASS(class) (G_TYPE_CHECK_CLASS_TYPE ((class), G_TYPE_TLS_DATABASE))
+#define G_TLS_DATABASE_GET_CLASS(inst) (G_TYPE_INSTANCE_GET_CLASS ((inst), G_TYPE_TLS_DATABASE, GTlsDatabaseClass))
+
+typedef struct _GTlsDatabaseClass   GTlsDatabaseClass;
+typedef struct _GTlsDatabasePrivate GTlsDatabasePrivate;
+
+struct _GTlsDatabase
+{
+  GObject parent_instance;
+
+  GTlsDatabasePrivate *priv;
+};
+
+struct _GTlsDatabaseClass
+{
+  GObjectClass parent_class;
+
+  /* virtual methods */
+
+  GTlsCertificateFlags  (*verify_chain)                         (GTlsDatabase            *self,
+                                                                 GTlsCertificate         *chain,
+                                                                 const gchar             *purpose,
+                                                                 GSocketConnectable      *identity,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseVerifyFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GError                 **error);
+
+  void                  (*verify_chain_async)                   (GTlsDatabase            *self,
+                                                                 GTlsCertificate         *chain,
+                                                                 const gchar             *purpose,
+                                                                 GSocketConnectable      *identity,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseVerifyFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GAsyncReadyCallback      callback,
+                                                                 gpointer                 user_data);
+
+  GTlsCertificateFlags  (*verify_chain_finish)                  (GTlsDatabase            *self,
+                                                                 GAsyncResult            *result,
+                                                                 GError                 **error);
+
+  gchar*                (*create_certificate_handle)            (GTlsDatabase            *self,
+                                                                 GTlsCertificate         *certificate);
+
+  GTlsCertificate*      (*lookup_certificate_for_handle)        (GTlsDatabase            *self,
+                                                                 const gchar             *handle,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GError                 **error);
+
+  void                  (*lookup_certificate_for_handle_async)  (GTlsDatabase            *self,
+                                                                 const gchar             *handle,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GAsyncReadyCallback      callback,
+                                                                 gpointer                 user_data);
+
+  GTlsCertificate*      (*lookup_certificate_for_handle_finish) (GTlsDatabase            *self,
+                                                                 GAsyncResult            *result,
+                                                                 GError                 **error);
+
+  GTlsCertificate*      (*lookup_certificate_issuer)            (GTlsDatabase            *self,
+                                                                 GTlsCertificate         *certificate,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GError                 **error);
+
+  void                  (*lookup_certificate_issuer_async)      (GTlsDatabase            *self,
+                                                                 GTlsCertificate         *certificate,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GAsyncReadyCallback      callback,
+                                                                 gpointer                 user_data);
+
+  GTlsCertificate*      (*lookup_certificate_issuer_finish)     (GTlsDatabase            *self,
+                                                                 GAsyncResult            *result,
+                                                                 GError                 **error);
+
+  GList*                (*lookup_certificates_issued_by)        (GTlsDatabase            *self,
+                                                                 GByteArray              *issuer_raw_dn,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GError                 **error);
+
+  void                  (*lookup_certificates_issued_by_async)  (GTlsDatabase            *self,
+                                                                 GByteArray              *issuer_raw_dn,
+                                                                 GTlsInteraction         *interaction,
+                                                                 GTlsDatabaseLookupFlags  flags,
+                                                                 GCancellable            *cancellable,
+                                                                 GAsyncReadyCallback      callback,
+                                                                 gpointer                 user_data);
+
+  GList*                (*lookup_certificates_issued_by_finish) (GTlsDatabase            *self,
+                                                                 GAsyncResult            *result,
+                                                                 GError                 **error);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[16];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                g_tls_database_get_type                              (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificateFlags g_tls_database_verify_chain                          (GTlsDatabase            *self,
+                                                                           GTlsCertificate         *chain,
+                                                                           const gchar             *purpose,
+                                                                           GSocketConnectable      *identity,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseVerifyFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                 g_tls_database_verify_chain_async                    (GTlsDatabase            *self,
+                                                                           GTlsCertificate         *chain,
+                                                                           const gchar             *purpose,
+                                                                           GSocketConnectable      *identity,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseVerifyFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GAsyncReadyCallback      callback,
+                                                                           gpointer                 user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificateFlags g_tls_database_verify_chain_finish                   (GTlsDatabase            *self,
+                                                                           GAsyncResult            *result,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+gchar*               g_tls_database_create_certificate_handle             (GTlsDatabase            *self,
+                                                                           GTlsCertificate         *certificate);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate*     g_tls_database_lookup_certificate_for_handle         (GTlsDatabase            *self,
+                                                                           const gchar             *handle,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseLookupFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                 g_tls_database_lookup_certificate_for_handle_async   (GTlsDatabase            *self,
+                                                                           const gchar             *handle,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseLookupFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GAsyncReadyCallback      callback,
+                                                                           gpointer                 user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate*     g_tls_database_lookup_certificate_for_handle_finish  (GTlsDatabase            *self,
+                                                                           GAsyncResult            *result,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate*     g_tls_database_lookup_certificate_issuer             (GTlsDatabase            *self,
+                                                                           GTlsCertificate         *certificate,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseLookupFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                 g_tls_database_lookup_certificate_issuer_async       (GTlsDatabase            *self,
+                                                                           GTlsCertificate         *certificate,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseLookupFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GAsyncReadyCallback      callback,
+                                                                           gpointer                 user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsCertificate*     g_tls_database_lookup_certificate_issuer_finish      (GTlsDatabase            *self,
+                                                                           GAsyncResult            *result,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+GList*               g_tls_database_lookup_certificates_issued_by         (GTlsDatabase            *self,
+                                                                           GByteArray              *issuer_raw_dn,
+                                                                           GTlsInteraction         *interaction,
+                                                                           GTlsDatabaseLookupFlags  flags,
+                                                                           GCancellable            *cancellable,
+                                                                           GError                 **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                 g_tls_database_lookup_certificates_issued_by_async    (GTlsDatabase            *self,
+                                                                            GByteArray              *issuer_raw_dn,
+                                                                            GTlsInteraction         *interaction,
+                                                                            GTlsDatabaseLookupFlags  flags,
+                                                                            GCancellable            *cancellable,
+                                                                            GAsyncReadyCallback      callback,
+                                                                            gpointer                 user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GList*               g_tls_database_lookup_certificates_issued_by_finish   (GTlsDatabase            *self,
+                                                                            GAsyncResult            *result,
+                                                                            GError                 **error);
+
+G_END_DECLS
+
+#endif /* __G_TLS_DATABASE_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright © 2010 Collabora, Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * See the included COPYING file for more information.
+ *
+ * Author: Stef Walter <stefw@collabora.co.uk>
+ */
+
+#ifndef __G_TLS_FILE_DATABASE_H__
+#define __G_TLS_FILE_DATABASE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_FILE_DATABASE                (g_tls_file_database_get_type ())
+#define G_TLS_FILE_DATABASE(inst)               (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_FILE_DATABASE, GTlsFileDatabase))
+#define G_IS_TLS_FILE_DATABASE(inst)            (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_FILE_DATABASE))
+#define G_TLS_FILE_DATABASE_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst), G_TYPE_TLS_FILE_DATABASE, GTlsFileDatabaseInterface))
+
+typedef struct _GTlsFileDatabaseInterface GTlsFileDatabaseInterface;
+
+/**
+ * GTlsFileDatabaseInterface:
+ * @g_iface: The parent interface.
+ *
+ * Provides an interface for #GTlsFileDatabase implementations.
+ *
+ */
+struct _GTlsFileDatabaseInterface
+{
+  GTypeInterface g_iface;
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                        g_tls_file_database_get_type              (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsDatabase*                g_tls_file_database_new                   (const gchar  *anchors,
+                                                                        GError      **error);
+
+G_END_DECLS
+
+#endif /* __G_TLS_FILE_DATABASE_H___ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2011 Collabora, Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Stef Walter <stefw@collabora.co.uk>
+ */
+
+#ifndef __G_TLS_INTERACTION_H__
+#define __G_TLS_INTERACTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_INTERACTION         (g_tls_interaction_get_type ())
+#define G_TLS_INTERACTION(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_TLS_INTERACTION, GTlsInteraction))
+#define G_TLS_INTERACTION_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_TLS_INTERACTION, GTlsInteractionClass))
+#define G_IS_TLS_INTERACTION(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_TLS_INTERACTION))
+#define G_IS_TLS_INTERACTION_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_TLS_INTERACTION))
+#define G_TLS_INTERACTION_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_TLS_INTERACTION, GTlsInteractionClass))
+
+typedef struct _GTlsInteractionClass   GTlsInteractionClass;
+typedef struct _GTlsInteractionPrivate GTlsInteractionPrivate;
+
+struct _GTlsInteraction
+{
+  /*< private >*/
+  GObject parent_instance;
+  GTlsInteractionPrivate *priv;
+};
+
+struct _GTlsInteractionClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  /*< public >*/
+  GTlsInteractionResult  (* ask_password)        (GTlsInteraction    *interaction,
+                                                  GTlsPassword       *password,
+                                                  GCancellable       *cancellable,
+                                                  GError            **error);
+
+  void                   (* ask_password_async)  (GTlsInteraction    *interaction,
+                                                  GTlsPassword       *password,
+                                                  GCancellable       *cancellable,
+                                                  GAsyncReadyCallback callback,
+                                                  gpointer            user_data);
+
+  GTlsInteractionResult  (* ask_password_finish) (GTlsInteraction    *interaction,
+                                                  GAsyncResult       *result,
+                                                  GError            **error);
+
+  GTlsInteractionResult  (* request_certificate)        (GTlsInteraction              *interaction,
+                                                         GTlsConnection               *connection,
+                                                         GTlsCertificateRequestFlags   flags,
+                                                         GCancellable                 *cancellable,
+                                                         GError                      **error);
+
+  void                   (* request_certificate_async)  (GTlsInteraction              *interaction,
+                                                         GTlsConnection               *connection,
+                                                         GTlsCertificateRequestFlags   flags,
+                                                         GCancellable                 *cancellable,
+                                                         GAsyncReadyCallback           callback,
+                                                         gpointer                      user_data);
+
+  GTlsInteractionResult  (* request_certificate_finish) (GTlsInteraction              *interaction,
+                                                         GAsyncResult                 *result,
+                                                         GError                      **error);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[21];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                  g_tls_interaction_get_type            (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsInteractionResult  g_tls_interaction_invoke_ask_password (GTlsInteraction    *interaction,
+                                                              GTlsPassword       *password,
+                                                              GCancellable       *cancellable,
+                                                              GError            **error);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsInteractionResult  g_tls_interaction_ask_password        (GTlsInteraction    *interaction,
+                                                              GTlsPassword       *password,
+                                                              GCancellable       *cancellable,
+                                                              GError            **error);
+
+GLIB_AVAILABLE_IN_ALL
+void                   g_tls_interaction_ask_password_async  (GTlsInteraction    *interaction,
+                                                              GTlsPassword       *password,
+                                                              GCancellable       *cancellable,
+                                                              GAsyncReadyCallback callback,
+                                                              gpointer            user_data);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsInteractionResult  g_tls_interaction_ask_password_finish (GTlsInteraction    *interaction,
+                                                              GAsyncResult       *result,
+                                                              GError            **error);
+
+GLIB_AVAILABLE_IN_2_40
+GTlsInteractionResult  g_tls_interaction_invoke_request_certificate (GTlsInteraction              *interaction,
+                                                                     GTlsConnection               *connection,
+                                                                     GTlsCertificateRequestFlags   flags,
+                                                                     GCancellable                 *cancellable,
+                                                                     GError                      **error);
+
+GLIB_AVAILABLE_IN_2_40
+GTlsInteractionResult  g_tls_interaction_request_certificate        (GTlsInteraction              *interaction,
+                                                                     GTlsConnection               *connection,
+                                                                     GTlsCertificateRequestFlags   flags,
+                                                                     GCancellable                 *cancellable,
+                                                                     GError                      **error);
+
+GLIB_AVAILABLE_IN_2_40
+void                   g_tls_interaction_request_certificate_async  (GTlsInteraction              *interaction,
+                                                                     GTlsConnection               *connection,
+                                                                     GTlsCertificateRequestFlags   flags,
+                                                                     GCancellable                 *cancellable,
+                                                                     GAsyncReadyCallback           callback,
+                                                                     gpointer                      user_data);
+
+GLIB_AVAILABLE_IN_2_40
+GTlsInteractionResult  g_tls_interaction_request_certificate_finish (GTlsInteraction              *interaction,
+                                                                     GAsyncResult                 *result,
+                                                                     GError                      **error);
+
+G_END_DECLS
+
+#endif /* __G_TLS_INTERACTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __G_TLS_SERVER_CONNECTION_H__
+#define __G_TLS_SERVER_CONNECTION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_SERVER_CONNECTION                (g_tls_server_connection_get_type ())
+#define G_TLS_SERVER_CONNECTION(inst)               (G_TYPE_CHECK_INSTANCE_CAST ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnection))
+#define G_IS_TLS_SERVER_CONNECTION(inst)            (G_TYPE_CHECK_INSTANCE_TYPE ((inst), G_TYPE_TLS_SERVER_CONNECTION))
+#define G_TLS_SERVER_CONNECTION_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst), G_TYPE_TLS_SERVER_CONNECTION, GTlsServerConnectionInterface))
+
+/**
+ * GTlsServerConnection:
+ *
+ * TLS server-side connection. This is the server-side implementation
+ * of a #GTlsConnection.
+ *
+ * Since: 2.28
+ */
+typedef struct _GTlsServerConnectionInterface GTlsServerConnectionInterface;
+
+/**
+ * GTlsServerConnectionInterface:
+ * @g_iface: The parent interface.
+ *
+ * vtable for a #GTlsServerConnection implementation.
+ *
+ * Since: 2.26
+ */
+struct _GTlsServerConnectionInterface
+{
+  GTypeInterface g_iface;
+
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_tls_server_connection_get_type                 (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GIOStream *           g_tls_server_connection_new                      (GIOStream        *base_io_stream,
+									GTlsCertificate  *certificate,
+									GError          **error);
+
+G_END_DECLS
+
+#endif /* __G_TLS_SERVER_CONNECTION_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2011 Collabora, Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Stef Walter <stefw@collabora.co.uk>
+ */
+
+#ifndef __G_TLS_PASSWORD_H__
+#define __G_TLS_PASSWORD_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_TLS_PASSWORD         (g_tls_password_get_type ())
+#define G_TLS_PASSWORD(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_TLS_PASSWORD, GTlsPassword))
+#define G_TLS_PASSWORD_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_TLS_PASSWORD, GTlsPasswordClass))
+#define G_IS_TLS_PASSWORD(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_TLS_PASSWORD))
+#define G_IS_TLS_PASSWORD_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_TLS_PASSWORD))
+#define G_TLS_PASSWORD_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_TLS_PASSWORD, GTlsPasswordClass))
+
+typedef struct _GTlsPasswordClass   GTlsPasswordClass;
+typedef struct _GTlsPasswordPrivate GTlsPasswordPrivate;
+
+struct _GTlsPassword
+{
+  GObject parent_instance;
+
+  GTlsPasswordPrivate *priv;
+};
+
+/**
+ * GTlsPasswordClass:
+ * @get_value: virtual method for g_tls_password_get_value()
+ * @set_value: virtual method for g_tls_password_set_value()
+ * @get_default_warning: virtual method for g_tls_password_get_warning() if no
+ *  value has been set using g_tls_password_set_warning()
+ *
+ * Class structure for #GTlsPassword.
+ */
+struct _GTlsPasswordClass
+{
+  GObjectClass parent_class;
+
+  /* methods */
+
+  const guchar *    ( *get_value)            (GTlsPassword  *password,
+                                              gsize         *length);
+
+  void              ( *set_value)            (GTlsPassword  *password,
+                                              guchar        *value,
+                                              gssize         length,
+                                              GDestroyNotify destroy);
+
+  const gchar*      ( *get_default_warning)  (GTlsPassword  *password);
+
+  /*< private >*/
+  /* Padding for future expansion */
+  gpointer padding[4];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType             g_tls_password_get_type            (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GTlsPassword *    g_tls_password_new                 (GTlsPasswordFlags  flags,
+                                                      const gchar       *description);
+
+GLIB_AVAILABLE_IN_ALL
+const guchar *    g_tls_password_get_value           (GTlsPassword      *password,
+                                                      gsize             *length);
+GLIB_AVAILABLE_IN_ALL
+void              g_tls_password_set_value           (GTlsPassword      *password,
+                                                      const guchar      *value,
+                                                      gssize             length);
+GLIB_AVAILABLE_IN_ALL
+void              g_tls_password_set_value_full      (GTlsPassword      *password,
+                                                      guchar            *value,
+                                                      gssize             length,
+                                                      GDestroyNotify     destroy);
+
+GLIB_AVAILABLE_IN_ALL
+GTlsPasswordFlags g_tls_password_get_flags           (GTlsPassword      *password);
+GLIB_AVAILABLE_IN_ALL
+void              g_tls_password_set_flags           (GTlsPassword      *password,
+                                                      GTlsPasswordFlags  flags);
+
+GLIB_AVAILABLE_IN_ALL
+const gchar*      g_tls_password_get_description     (GTlsPassword      *password);
+GLIB_AVAILABLE_IN_ALL
+void              g_tls_password_set_description     (GTlsPassword      *password,
+                                                      const gchar       *description);
+
+GLIB_AVAILABLE_IN_ALL
+const gchar *     g_tls_password_get_warning         (GTlsPassword      *password);
+GLIB_AVAILABLE_IN_ALL
+void              g_tls_password_set_warning         (GTlsPassword      *password,
+                                                      const gchar       *warning);
+
+G_END_DECLS
+
+#endif /* __G_TLS_PASSWORD_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_VFS_H__
+#define __G_VFS_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_VFS         (g_vfs_get_type ())
+#define G_VFS(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_VFS, GVfs))
+#define G_VFS_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_VFS, GVfsClass))
+#define G_VFS_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_VFS, GVfsClass))
+#define G_IS_VFS(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_VFS))
+#define G_IS_VFS_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_VFS))
+
+/**
+ * GVfsFileLookupFunc:
+ * @vfs: a #GVfs
+ * @identifier: the identifier to lookup a #GFile for. This can either
+ *     be an URI or a parse name as returned by g_file_get_parse_name()
+ * @user_data: user data passed to the function
+ *
+ * This function type is used by g_vfs_register_uri_scheme() to make it
+ * possible for a client to associate an URI scheme to a different #GFile
+ * implementation.
+ *
+ * The client should return a reference to the new file that has been
+ * created for @uri, or %NULL to continue with the default implementation.
+ *
+ * Returns: (transfer full): a #GFile for @identifier.
+ *
+ * Since: 2.50
+ */
+typedef GFile * (* GVfsFileLookupFunc) (GVfs       *vfs,
+                                        const char *identifier,
+                                        gpointer    user_data);
+
+/**
+ * G_VFS_EXTENSION_POINT_NAME:
+ *
+ * Extension point for #GVfs functionality.
+ * See [Extending GIO][extending-gio].
+ */
+#define G_VFS_EXTENSION_POINT_NAME "gio-vfs"
+
+/**
+ * GVfs:
+ *
+ * Virtual File System object.
+ **/
+typedef struct _GVfsClass    GVfsClass;
+
+struct _GVfs
+{
+  GObject parent_instance;
+};
+
+struct _GVfsClass
+{
+  GObjectClass parent_class;
+
+  /* Virtual Table */
+
+  gboolean              (* is_active)                 (GVfs       *vfs);
+  GFile               * (* get_file_for_path)         (GVfs       *vfs,
+                                                       const char *path);
+  GFile               * (* get_file_for_uri)          (GVfs       *vfs,
+                                                       const char *uri);
+  const gchar * const * (* get_supported_uri_schemes) (GVfs       *vfs);
+  GFile               * (* parse_name)                (GVfs       *vfs,
+                                                       const char *parse_name);
+
+  /*< private >*/
+  void                  (* local_file_add_info)       (GVfs       *vfs,
+						       const char *filename,
+						       guint64     device,
+						       GFileAttributeMatcher *attribute_matcher,
+						       GFileInfo  *info,
+						       GCancellable *cancellable,
+						       gpointer   *extra_data,
+						       GDestroyNotify *free_extra_data);
+  void                  (* add_writable_namespaces)   (GVfs       *vfs,
+						       GFileAttributeInfoList *list);
+  gboolean              (* local_file_set_attributes) (GVfs       *vfs,
+						       const char *filename,
+						       GFileInfo  *info,
+                                                       GFileQueryInfoFlags flags,
+                                                       GCancellable *cancellable,
+						       GError    **error);
+  void                  (* local_file_removed)        (GVfs       *vfs,
+						       const char *filename);
+  void                  (* local_file_moved)          (GVfs       *vfs,
+						       const char *source,
+						       const char *dest);
+  GIcon *               (* deserialize_icon)          (GVfs       *vfs,
+                                                       GVariant   *value);
+  /* Padding for future expansion */
+  void (*_g_reserved1) (void);
+  void (*_g_reserved2) (void);
+  void (*_g_reserved3) (void);
+  void (*_g_reserved4) (void);
+  void (*_g_reserved5) (void);
+  void (*_g_reserved6) (void);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_vfs_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+gboolean              g_vfs_is_active                 (GVfs       *vfs);
+GLIB_AVAILABLE_IN_ALL
+GFile *               g_vfs_get_file_for_path         (GVfs       *vfs,
+                                                       const char *path);
+GLIB_AVAILABLE_IN_ALL
+GFile *               g_vfs_get_file_for_uri          (GVfs       *vfs,
+                                                       const char *uri);
+GLIB_AVAILABLE_IN_ALL
+const gchar* const * g_vfs_get_supported_uri_schemes  (GVfs       *vfs);
+
+GLIB_AVAILABLE_IN_ALL
+GFile *               g_vfs_parse_name                (GVfs       *vfs,
+                                                       const char *parse_name);
+
+GLIB_AVAILABLE_IN_ALL
+GVfs *                g_vfs_get_default               (void);
+GLIB_AVAILABLE_IN_ALL
+GVfs *                g_vfs_get_local                 (void);
+
+GLIB_AVAILABLE_IN_2_50
+gboolean              g_vfs_register_uri_scheme       (GVfs               *vfs,
+                                                       const char         *scheme,
+                                                       GVfsFileLookupFunc  uri_func,
+                                                       gpointer            uri_data,
+                                                       GDestroyNotify      uri_destroy,
+                                                       GVfsFileLookupFunc  parse_name_func,
+                                                       gpointer            parse_name_data,
+                                                       GDestroyNotify      parse_name_destroy);
+GLIB_AVAILABLE_IN_2_50
+gboolean              g_vfs_unregister_uri_scheme     (GVfs               *vfs,
+                                                       const char         *scheme);
+
+
+G_END_DECLS
+
+#endif /* __G_VFS_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2006-2007 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ *         David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_VOLUME_H__
+#define __G_VOLUME_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#ifndef G_DISABLE_DEPRECATED
+/**
+ * G_VOLUME_IDENTIFIER_KIND_HAL_UDI:
+ *
+ * The string used to obtain a Hal UDI with g_volume_get_identifier().
+ *
+ * Deprecated: 2.58: Do not use, HAL is deprecated.
+ */
+#define G_VOLUME_IDENTIFIER_KIND_HAL_UDI "hal-udi"
+#endif /* G_DISABLE_DEPRECATED */
+
+/**
+ * G_VOLUME_IDENTIFIER_KIND_UNIX_DEVICE:
+ *
+ * The string used to obtain a Unix device path with g_volume_get_identifier().
+ */
+#define G_VOLUME_IDENTIFIER_KIND_UNIX_DEVICE "unix-device"
+
+/**
+ * G_VOLUME_IDENTIFIER_KIND_LABEL:
+ *
+ * The string used to obtain a filesystem label with g_volume_get_identifier().
+ */
+#define G_VOLUME_IDENTIFIER_KIND_LABEL "label"
+
+/**
+ * G_VOLUME_IDENTIFIER_KIND_UUID:
+ *
+ * The string used to obtain a UUID with g_volume_get_identifier().
+ */
+#define G_VOLUME_IDENTIFIER_KIND_UUID "uuid"
+
+/**
+ * G_VOLUME_IDENTIFIER_KIND_NFS_MOUNT:
+ *
+ * The string used to obtain a NFS mount with g_volume_get_identifier().
+ */
+#define G_VOLUME_IDENTIFIER_KIND_NFS_MOUNT "nfs-mount"
+
+/**
+ * G_VOLUME_IDENTIFIER_KIND_CLASS:
+ *
+ * The string used to obtain the volume class with g_volume_get_identifier().
+ *
+ * Known volume classes include `device`, `network`, and `loop`. Other
+ * classes may be added in the future.
+ *
+ * This is intended to be used by applications to classify #GVolume
+ * instances into different sections - for example a file manager or
+ * file chooser can use this information to show `network` volumes under
+ * a "Network" heading and `device` volumes under a "Devices" heading.
+ */
+#define G_VOLUME_IDENTIFIER_KIND_CLASS "class"
+
+
+#define G_TYPE_VOLUME            (g_volume_get_type ())
+#define G_VOLUME(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), G_TYPE_VOLUME, GVolume))
+#define G_IS_VOLUME(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), G_TYPE_VOLUME))
+#define G_VOLUME_GET_IFACE(obj)  (G_TYPE_INSTANCE_GET_INTERFACE ((obj), G_TYPE_VOLUME, GVolumeIface))
+
+/**
+ * GVolumeIface:
+ * @g_iface: The parent interface.
+ * @changed: Changed signal that is emitted when the volume's state has changed.
+ * @removed: The removed signal that is emitted when the #GVolume have been removed. If the recipient is holding references to the object they should release them so the object can be finalized.
+ * @get_name: Gets a string containing the name of the #GVolume.
+ * @get_icon: Gets a #GIcon for the #GVolume.
+ * @get_uuid: Gets the UUID for the #GVolume. The reference is typically based on the file system UUID for the mount in question and should be considered an opaque string. Returns %NULL if there is no UUID available.
+ * @get_drive: Gets a #GDrive the volume is located on. Returns %NULL if the #GVolume is not associated with a #GDrive.
+ * @get_mount: Gets a #GMount representing the mounted volume. Returns %NULL if the #GVolume is not mounted.
+ * @can_mount: Returns %TRUE if the #GVolume can be mounted.
+ * @can_eject: Checks if a #GVolume can be ejected.
+ * @mount_fn: Mounts a given #GVolume. 
+ *     #GVolume implementations must emit the #GMountOperation::aborted 
+ *     signal before completing a mount operation that is aborted while 
+ *     awaiting input from the user through a #GMountOperation instance.
+ * @mount_finish: Finishes a mount operation.
+ * @eject: Ejects a given #GVolume.
+ * @eject_finish: Finishes an eject operation.
+ * @get_identifier: Returns the [identifier][volume-identifier] of the given kind, or %NULL if
+ *    the #GVolume doesn't have one.
+ * @enumerate_identifiers: Returns an array strings listing the kinds
+ *    of [identifiers][volume-identifier] which the #GVolume has.
+ * @should_automount: Returns %TRUE if the #GVolume should be automatically mounted.
+ * @get_activation_root: Returns the activation root for the #GVolume if it is known in advance or %NULL if
+ *   it is not known.
+ * @eject_with_operation: Starts ejecting a #GVolume using a #GMountOperation. Since 2.22.
+ * @eject_with_operation_finish: Finishes an eject operation using a #GMountOperation. Since 2.22.
+ * @get_sort_key: Gets a key used for sorting #GVolume instance or %NULL if no such key exists. Since 2.32.
+ * @get_symbolic_icon: Gets a symbolic #GIcon for the #GVolume. Since 2.34.
+ *
+ * Interface for implementing operations for mountable volumes.
+ **/
+typedef struct _GVolumeIface    GVolumeIface;
+
+struct _GVolumeIface
+{
+  GTypeInterface g_iface;
+
+  /* signals */
+
+  void        (* changed)               (GVolume             *volume);
+  void        (* removed)               (GVolume             *volume);
+
+  /* Virtual Table */
+
+  char      * (* get_name)              (GVolume             *volume);
+  GIcon     * (* get_icon)              (GVolume             *volume);
+  char      * (* get_uuid)              (GVolume             *volume);
+  GDrive    * (* get_drive)             (GVolume             *volume);
+  GMount    * (* get_mount)             (GVolume             *volume);
+  gboolean    (* can_mount)             (GVolume             *volume);
+  gboolean    (* can_eject)             (GVolume             *volume);
+  void        (* mount_fn)              (GVolume             *volume,
+                                         GMountMountFlags     flags,
+                                         GMountOperation     *mount_operation,
+                                         GCancellable        *cancellable,
+                                         GAsyncReadyCallback  callback,
+                                         gpointer             user_data);
+  gboolean    (* mount_finish)          (GVolume             *volume,
+                                         GAsyncResult        *result,
+                                         GError             **error);
+  void        (* eject)                 (GVolume             *volume,
+                                         GMountUnmountFlags   flags,
+                                         GCancellable        *cancellable,
+                                         GAsyncReadyCallback  callback,
+                                         gpointer             user_data);
+  gboolean    (* eject_finish)          (GVolume             *volume,
+                                         GAsyncResult        *result,
+                                         GError             **error);
+
+  char      * (* get_identifier)        (GVolume             *volume,
+                                         const char          *kind);
+  char     ** (* enumerate_identifiers) (GVolume             *volume);
+
+  gboolean    (* should_automount)      (GVolume             *volume);
+
+  GFile     * (* get_activation_root)   (GVolume             *volume);
+
+  void        (* eject_with_operation)      (GVolume             *volume,
+                                             GMountUnmountFlags   flags,
+                                             GMountOperation     *mount_operation,
+                                             GCancellable        *cancellable,
+                                             GAsyncReadyCallback  callback,
+                                             gpointer             user_data);
+  gboolean    (* eject_with_operation_finish) (GVolume           *volume,
+                                             GAsyncResult        *result,
+                                             GError             **error);
+
+  const gchar * (* get_sort_key)        (GVolume             *volume);
+  GIcon       * (* get_symbolic_icon)   (GVolume             *volume);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType    g_volume_get_type              (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+char *   g_volume_get_name              (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+GIcon *  g_volume_get_icon              (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+GIcon *  g_volume_get_symbolic_icon     (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+char *   g_volume_get_uuid              (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+GDrive * g_volume_get_drive             (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+GMount * g_volume_get_mount             (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+gboolean g_volume_can_mount             (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+gboolean g_volume_can_eject             (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+gboolean g_volume_should_automount      (GVolume              *volume);
+GLIB_AVAILABLE_IN_ALL
+void     g_volume_mount                 (GVolume              *volume,
+					 GMountMountFlags      flags,
+					 GMountOperation      *mount_operation,
+					 GCancellable         *cancellable,
+					 GAsyncReadyCallback   callback,
+					 gpointer              user_data);
+GLIB_AVAILABLE_IN_ALL
+gboolean g_volume_mount_finish          (GVolume              *volume,
+					 GAsyncResult         *result,
+					 GError              **error);
+GLIB_DEPRECATED_FOR(g_volume_eject_with_operation)
+void     g_volume_eject                 (GVolume              *volume,
+                                         GMountUnmountFlags    flags,
+                                         GCancellable         *cancellable,
+                                         GAsyncReadyCallback   callback,
+                                         gpointer              user_data);
+
+GLIB_DEPRECATED_FOR(g_volume_eject_with_operation_finish)
+gboolean g_volume_eject_finish          (GVolume              *volume,
+                                         GAsyncResult         *result,
+                                         GError              **error);
+GLIB_AVAILABLE_IN_ALL
+char *   g_volume_get_identifier        (GVolume              *volume,
+					 const char           *kind);
+GLIB_AVAILABLE_IN_ALL
+char **  g_volume_enumerate_identifiers (GVolume              *volume);
+
+GLIB_AVAILABLE_IN_ALL
+GFile *  g_volume_get_activation_root   (GVolume              *volume);
+
+GLIB_AVAILABLE_IN_ALL
+void        g_volume_eject_with_operation     (GVolume             *volume,
+                                               GMountUnmountFlags   flags,
+                                               GMountOperation     *mount_operation,
+                                               GCancellable        *cancellable,
+                                               GAsyncReadyCallback  callback,
+                                               gpointer             user_data);
+GLIB_AVAILABLE_IN_ALL
+gboolean    g_volume_eject_with_operation_finish (GVolume          *volume,
+                                               GAsyncResult        *result,
+                                               GError             **error);
+
+GLIB_AVAILABLE_IN_2_32
+const gchar *g_volume_get_sort_key            (GVolume              *volume);
+
+G_END_DECLS
+
+#endif /* __G_VOLUME_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2009 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_ZLIB_COMPRESSOR_H__
+#define __G_ZLIB_COMPRESSOR_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_ZLIB_COMPRESSOR         (g_zlib_compressor_get_type ())
+#define G_ZLIB_COMPRESSOR(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_ZLIB_COMPRESSOR, GZlibCompressor))
+#define G_ZLIB_COMPRESSOR_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_ZLIB_COMPRESSOR, GZlibCompressorClass))
+#define G_IS_ZLIB_COMPRESSOR(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_ZLIB_COMPRESSOR))
+#define G_IS_ZLIB_COMPRESSOR_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_ZLIB_COMPRESSOR))
+#define G_ZLIB_COMPRESSOR_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_ZLIB_COMPRESSOR, GZlibCompressorClass))
+
+typedef struct _GZlibCompressorClass   GZlibCompressorClass;
+
+struct _GZlibCompressorClass
+{
+  GObjectClass parent_class;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType            g_zlib_compressor_get_type (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GZlibCompressor *g_zlib_compressor_new (GZlibCompressorFormat format,
+					int level);
+
+GLIB_AVAILABLE_IN_ALL
+GFileInfo       *g_zlib_compressor_get_file_info (GZlibCompressor *compressor);
+GLIB_AVAILABLE_IN_ALL
+void             g_zlib_compressor_set_file_info (GZlibCompressor *compressor,
+                                                  GFileInfo       *file_info);
+
+G_END_DECLS
+
+#endif /* __G_ZLIB_COMPRESSOR_H__ */
+/* GIO - GLib Input, Output and Streaming Library
+ *
+ * Copyright (C) 2009 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Alexander Larsson <alexl@redhat.com>
+ */
+
+#ifndef __G_ZLIB_DECOMPRESSOR_H__
+#define __G_ZLIB_DECOMPRESSOR_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_ZLIB_DECOMPRESSOR         (g_zlib_decompressor_get_type ())
+#define G_ZLIB_DECOMPRESSOR(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_ZLIB_DECOMPRESSOR, GZlibDecompressor))
+#define G_ZLIB_DECOMPRESSOR_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_ZLIB_DECOMPRESSOR, GZlibDecompressorClass))
+#define G_IS_ZLIB_DECOMPRESSOR(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_ZLIB_DECOMPRESSOR))
+#define G_IS_ZLIB_DECOMPRESSOR_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_ZLIB_DECOMPRESSOR))
+#define G_ZLIB_DECOMPRESSOR_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_ZLIB_DECOMPRESSOR, GZlibDecompressorClass))
+
+typedef struct _GZlibDecompressorClass   GZlibDecompressorClass;
+
+struct _GZlibDecompressorClass
+{
+  GObjectClass parent_class;
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType              g_zlib_decompressor_get_type (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GZlibDecompressor *g_zlib_decompressor_new (GZlibCompressorFormat format);
+
+GLIB_AVAILABLE_IN_ALL
+GFileInfo         *g_zlib_decompressor_get_file_info (GZlibDecompressor *decompressor);
+
+G_END_DECLS
+
+#endif /* __G_ZLIB_DECOMPRESSOR_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_INTERFACE_H__
+#define __G_DBUS_INTERFACE_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_INTERFACE         (g_dbus_interface_get_type())
+#define G_DBUS_INTERFACE(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE, GDBusInterface))
+#define G_IS_DBUS_INTERFACE(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE))
+#define G_DBUS_INTERFACE_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_INTERFACE, GDBusInterfaceIface))
+
+/**
+ * GDBusInterface:
+ *
+ * Base type for D-Bus interfaces.
+ *
+ * Since: 2.30
+ */
+
+typedef struct _GDBusInterfaceIface GDBusInterfaceIface;
+
+/**
+ * GDBusInterfaceIface:
+ * @parent_iface: The parent interface.
+ * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_get_info().
+ * @get_object: Gets the enclosing #GDBusObject. See g_dbus_interface_get_object().
+ * @set_object: Sets the enclosing #GDBusObject. See g_dbus_interface_set_object().
+ * @dup_object: Gets a reference to the enclosing #GDBusObject. See g_dbus_interface_dup_object(). Added in 2.32.
+ *
+ * Base type for D-Bus interfaces.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  GDBusInterfaceInfo   *(*get_info)   (GDBusInterface      *interface_);
+  GDBusObject          *(*get_object) (GDBusInterface      *interface_);
+  void                  (*set_object) (GDBusInterface      *interface_,
+                                       GDBusObject         *object);
+  GDBusObject          *(*dup_object) (GDBusInterface      *interface_);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                 g_dbus_interface_get_type         (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceInfo   *g_dbus_interface_get_info         (GDBusInterface      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GDBusObject          *g_dbus_interface_get_object       (GDBusInterface      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                  g_dbus_interface_set_object       (GDBusInterface      *interface_,
+                                                         GDBusObject         *object);
+GLIB_AVAILABLE_IN_2_32
+GDBusObject          *g_dbus_interface_dup_object       (GDBusInterface      *interface_);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_INTERFACE_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_INTERFACE_SKELETON_H__
+#define __G_DBUS_INTERFACE_SKELETON_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_INTERFACE_SKELETON         (g_dbus_interface_skeleton_get_type ())
+#define G_DBUS_INTERFACE_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeleton))
+#define G_DBUS_INTERFACE_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
+#define G_DBUS_INTERFACE_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_INTERFACE_SKELETON, GDBusInterfaceSkeletonClass))
+#define G_IS_DBUS_INTERFACE_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_INTERFACE_SKELETON))
+#define G_IS_DBUS_INTERFACE_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_INTERFACE_SKELETON))
+
+typedef struct _GDBusInterfaceSkeletonClass   GDBusInterfaceSkeletonClass;
+typedef struct _GDBusInterfaceSkeletonPrivate GDBusInterfaceSkeletonPrivate;
+
+/**
+ * GDBusInterfaceSkeleton:
+ *
+ * The #GDBusInterfaceSkeleton structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceSkeleton
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusInterfaceSkeletonPrivate *priv;
+};
+
+/**
+ * GDBusInterfaceSkeletonClass:
+ * @parent_class: The parent class.
+ * @get_info: Returns a #GDBusInterfaceInfo. See g_dbus_interface_skeleton_get_info() for details.
+ * @get_vtable: Returns a #GDBusInterfaceVTable. See g_dbus_interface_skeleton_get_vtable() for details.
+ * @get_properties: Returns a #GVariant with all properties. See g_dbus_interface_skeleton_get_properties().
+ * @flush: Emits outstanding changes, if any. See g_dbus_interface_skeleton_flush().
+ * @g_authorize_method: Signal class handler for the #GDBusInterfaceSkeleton::g-authorize-method signal.
+ *
+ * Class structure for #GDBusInterfaceSkeleton.
+ *
+ * Since: 2.30
+ */
+struct _GDBusInterfaceSkeletonClass
+{
+  GObjectClass parent_class;
+
+  /* Virtual Functions */
+  GDBusInterfaceInfo   *(*get_info)       (GDBusInterfaceSkeleton  *interface_);
+  GDBusInterfaceVTable *(*get_vtable)     (GDBusInterfaceSkeleton  *interface_);
+  GVariant             *(*get_properties) (GDBusInterfaceSkeleton  *interface_);
+  void                  (*flush)          (GDBusInterfaceSkeleton  *interface_);
+
+  /*< private >*/
+  gpointer vfunc_padding[8];
+  /*< public >*/
+
+  /* Signals */
+  gboolean (*g_authorize_method) (GDBusInterfaceSkeleton  *interface_,
+                                  GDBusMethodInvocation   *invocation);
+
+  /*< private >*/
+  gpointer signal_padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                        g_dbus_interface_skeleton_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceSkeletonFlags  g_dbus_interface_skeleton_get_flags       (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_set_flags       (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusInterfaceSkeletonFlags  flags);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceInfo          *g_dbus_interface_skeleton_get_info        (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterfaceVTable        *g_dbus_interface_skeleton_get_vtable      (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GVariant                    *g_dbus_interface_skeleton_get_properties  (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_flush           (GDBusInterfaceSkeleton      *interface_);
+
+GLIB_AVAILABLE_IN_ALL
+gboolean                     g_dbus_interface_skeleton_export          (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection,
+                                                                        const gchar                 *object_path,
+                                                                        GError                     **error);
+GLIB_AVAILABLE_IN_ALL
+void                         g_dbus_interface_skeleton_unexport        (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                g_dbus_interface_skeleton_unexport_from_connection (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection);
+
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection             *g_dbus_interface_skeleton_get_connection  (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+GList                       *g_dbus_interface_skeleton_get_connections (GDBusInterfaceSkeleton      *interface_);
+GLIB_AVAILABLE_IN_ALL
+gboolean                     g_dbus_interface_skeleton_has_connection  (GDBusInterfaceSkeleton      *interface_,
+                                                                        GDBusConnection             *connection);
+GLIB_AVAILABLE_IN_ALL
+const gchar                 *g_dbus_interface_skeleton_get_object_path (GDBusInterfaceSkeleton      *interface_);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_INTERFACE_SKELETON_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_H__
+#define __G_DBUS_OBJECT_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT         (g_dbus_object_get_type())
+#define G_DBUS_OBJECT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT, GDBusObject))
+#define G_IS_DBUS_OBJECT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT))
+#define G_DBUS_OBJECT_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT, GDBusObjectIface))
+
+typedef struct _GDBusObjectIface GDBusObjectIface;
+
+/**
+ * GDBusObjectIface:
+ * @parent_iface: The parent interface.
+ * @get_object_path: Returns the object path. See g_dbus_object_get_object_path().
+ * @get_interfaces: Returns all interfaces. See g_dbus_object_get_interfaces().
+ * @get_interface: Returns an interface by name. See g_dbus_object_get_interface().
+ * @interface_added: Signal handler for the #GDBusObject::interface-added signal.
+ * @interface_removed: Signal handler for the #GDBusObject::interface-removed signal.
+ *
+ * Base object type for D-Bus objects.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  const gchar     *(*get_object_path) (GDBusObject  *object);
+  GList           *(*get_interfaces)  (GDBusObject  *object);
+  GDBusInterface  *(*get_interface)   (GDBusObject  *object,
+                                       const gchar  *interface_name);
+
+  /* Signals */
+  void (*interface_added)   (GDBusObject     *object,
+                             GDBusInterface  *interface_);
+  void (*interface_removed) (GDBusObject     *object,
+                             GDBusInterface  *interface_);
+
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType            g_dbus_object_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+const gchar     *g_dbus_object_get_object_path (GDBusObject  *object);
+GLIB_AVAILABLE_IN_ALL
+GList           *g_dbus_object_get_interfaces  (GDBusObject  *object);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterface  *g_dbus_object_get_interface   (GDBusObject  *object,
+                                                const gchar  *interface_name);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_SKELETON_H__
+#define __G_DBUS_OBJECT_SKELETON_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_SKELETON         (g_dbus_object_skeleton_get_type ())
+#define G_DBUS_OBJECT_SKELETON(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeleton))
+#define G_DBUS_OBJECT_SKELETON_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
+#define G_DBUS_OBJECT_SKELETON_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_SKELETON, GDBusObjectSkeletonClass))
+#define G_IS_DBUS_OBJECT_SKELETON(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_SKELETON))
+#define G_IS_DBUS_OBJECT_SKELETON_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_SKELETON))
+
+typedef struct _GDBusObjectSkeletonClass   GDBusObjectSkeletonClass;
+typedef struct _GDBusObjectSkeletonPrivate GDBusObjectSkeletonPrivate;
+
+/**
+ * GDBusObjectSkeleton:
+ *
+ * The #GDBusObjectSkeleton structure contains private data and should only be
+ * accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectSkeleton
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectSkeletonPrivate *priv;
+};
+
+/**
+ * GDBusObjectSkeletonClass:
+ * @parent_class: The parent class.
+ * @authorize_method: Signal class handler for the #GDBusObjectSkeleton::authorize-method signal.
+ *
+ * Class structure for #GDBusObjectSkeleton.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectSkeletonClass
+{
+  GObjectClass parent_class;
+
+  /* Signals */
+  gboolean (*authorize_method) (GDBusObjectSkeleton       *object,
+                                GDBusInterfaceSkeleton    *interface_,
+                                GDBusMethodInvocation *invocation);
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                g_dbus_object_skeleton_get_type                  (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectSkeleton *g_dbus_object_skeleton_new                       (const gchar            *object_path);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_flush                     (GDBusObjectSkeleton    *object);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_add_interface             (GDBusObjectSkeleton    *object,
+                                                                       GDBusInterfaceSkeleton *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_remove_interface          (GDBusObjectSkeleton    *object,
+                                                                       GDBusInterfaceSkeleton *interface_);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_remove_interface_by_name  (GDBusObjectSkeleton    *object,
+                                                                       const gchar            *interface_name);
+GLIB_AVAILABLE_IN_ALL
+void                 g_dbus_object_skeleton_set_object_path           (GDBusObjectSkeleton    *object,
+                                                                       const gchar            *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_SKELETON_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_PROXY_H__
+#define __G_DBUS_OBJECT_PROXY_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_PROXY         (g_dbus_object_proxy_get_type ())
+#define G_DBUS_OBJECT_PROXY(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxy))
+#define G_DBUS_OBJECT_PROXY_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
+#define G_DBUS_OBJECT_PROXY_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_PROXY, GDBusObjectProxyClass))
+#define G_IS_DBUS_OBJECT_PROXY(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_PROXY))
+#define G_IS_DBUS_OBJECT_PROXY_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_PROXY))
+
+typedef struct _GDBusObjectProxyClass   GDBusObjectProxyClass;
+typedef struct _GDBusObjectProxyPrivate GDBusObjectProxyPrivate;
+
+/**
+ * GDBusObjectProxy:
+ *
+ * The #GDBusObjectProxy structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectProxy
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectProxyPrivate *priv;
+};
+
+/**
+ * GDBusObjectProxyClass:
+ * @parent_class: The parent class.
+ *
+ * Class structure for #GDBusObjectProxy.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectProxyClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType             g_dbus_object_proxy_get_type       (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectProxy *g_dbus_object_proxy_new            (GDBusConnection   *connection,
+                                                      const gchar       *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection  *g_dbus_object_proxy_get_connection (GDBusObjectProxy  *proxy);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_PROXY_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_H__
+#define __G_DBUS_OBJECT_MANAGER_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER         (g_dbus_object_manager_get_type())
+#define G_DBUS_OBJECT_MANAGER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManager))
+#define G_IS_DBUS_OBJECT_MANAGER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER))
+#define G_DBUS_OBJECT_MANAGER_GET_IFACE(o) (G_TYPE_INSTANCE_GET_INTERFACE((o), G_TYPE_DBUS_OBJECT_MANAGER, GDBusObjectManagerIface))
+
+typedef struct _GDBusObjectManagerIface GDBusObjectManagerIface;
+
+/**
+ * GDBusObjectManagerIface:
+ * @parent_iface: The parent interface.
+ * @get_object_path: Virtual function for g_dbus_object_manager_get_object_path().
+ * @get_objects: Virtual function for g_dbus_object_manager_get_objects().
+ * @get_object: Virtual function for g_dbus_object_manager_get_object().
+ * @get_interface: Virtual function for g_dbus_object_manager_get_interface().
+ * @object_added: Signal handler for the #GDBusObjectManager::object-added signal.
+ * @object_removed: Signal handler for the #GDBusObjectManager::object-removed signal.
+ * @interface_added: Signal handler for the #GDBusObjectManager::interface-added signal.
+ * @interface_removed: Signal handler for the #GDBusObjectManager::interface-removed signal.
+ *
+ * Base type for D-Bus object managers.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerIface
+{
+  GTypeInterface parent_iface;
+
+  /* Virtual Functions */
+  const gchar     *(*get_object_path) (GDBusObjectManager    *manager);
+  GList           *(*get_objects)     (GDBusObjectManager    *manager);
+  GDBusObject     *(*get_object)      (GDBusObjectManager    *manager,
+                                       const gchar           *object_path);
+  GDBusInterface  *(*get_interface)   (GDBusObjectManager    *manager,
+                                       const gchar           *object_path,
+                                       const gchar           *interface_name);
+
+  /* Signals */
+  void    (*object_added)                 (GDBusObjectManager   *manager,
+                                           GDBusObject          *object);
+  void    (*object_removed)               (GDBusObjectManager   *manager,
+                                           GDBusObject          *object);
+
+  void    (*interface_added)              (GDBusObjectManager   *manager,
+                                           GDBusObject          *object,
+                                           GDBusInterface       *interface_);
+  void    (*interface_removed)            (GDBusObjectManager   *manager,
+                                           GDBusObject          *object,
+                                           GDBusInterface       *interface_);
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType            g_dbus_object_manager_get_type        (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+const gchar     *g_dbus_object_manager_get_object_path (GDBusObjectManager    *manager);
+GLIB_AVAILABLE_IN_ALL
+GList           *g_dbus_object_manager_get_objects     (GDBusObjectManager    *manager);
+GLIB_AVAILABLE_IN_ALL
+GDBusObject     *g_dbus_object_manager_get_object      (GDBusObjectManager    *manager,
+                                                        const gchar           *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusInterface  *g_dbus_object_manager_get_interface   (GDBusObjectManager    *manager,
+                                                        const gchar           *object_path,
+                                                        const gchar           *interface_name);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_H__ */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_CLIENT_H__
+#define __G_DBUS_OBJECT_MANAGER_CLIENT_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER_CLIENT         (g_dbus_object_manager_client_get_type ())
+#define G_DBUS_OBJECT_MANAGER_CLIENT(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClient))
+#define G_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
+#define G_DBUS_OBJECT_MANAGER_CLIENT_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT, GDBusObjectManagerClientClass))
+#define G_IS_DBUS_OBJECT_MANAGER_CLIENT(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
+#define G_IS_DBUS_OBJECT_MANAGER_CLIENT_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_CLIENT))
+
+typedef struct _GDBusObjectManagerClientClass   GDBusObjectManagerClientClass;
+typedef struct _GDBusObjectManagerClientPrivate GDBusObjectManagerClientPrivate;
+
+/**
+ * GDBusObjectManagerClient:
+  *
+ * The #GDBusObjectManagerClient structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerClient
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectManagerClientPrivate *priv;
+};
+
+/**
+ * GDBusObjectManagerClientClass:
+ * @parent_class: The parent class.
+ * @interface_proxy_signal: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-signal signal.
+ * @interface_proxy_properties_changed: Signal class handler for the #GDBusObjectManagerClient::interface-proxy-properties-changed signal.
+ *
+ * Class structure for #GDBusObjectManagerClient.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerClientClass
+{
+  GObjectClass parent_class;
+
+  /* signals */
+  void    (*interface_proxy_signal)             (GDBusObjectManagerClient *manager,
+                                                 GDBusObjectProxy         *object_proxy,
+                                                 GDBusProxy               *interface_proxy,
+                                                 const gchar              *sender_name,
+                                                 const gchar              *signal_name,
+                                                 GVariant                 *parameters);
+
+  void    (*interface_proxy_properties_changed) (GDBusObjectManagerClient   *manager,
+                                                 GDBusObjectProxy           *object_proxy,
+                                                 GDBusProxy                 *interface_proxy,
+                                                 GVariant                   *changed_properties,
+                                                 const gchar* const         *invalidated_properties);
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                         g_dbus_object_manager_client_get_type           (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+void                          g_dbus_object_manager_client_new                (GDBusConnection               *connection,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GAsyncReadyCallback            callback,
+                                                                               gpointer                       user_data);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_finish         (GAsyncResult                  *res,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_sync           (GDBusConnection               *connection,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+void                          g_dbus_object_manager_client_new_for_bus        (GBusType                       bus_type,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GAsyncReadyCallback            callback,
+                                                                               gpointer                       user_data);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_finish (GAsyncResult                  *res,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManager           *g_dbus_object_manager_client_new_for_bus_sync   (GBusType                       bus_type,
+                                                                               GDBusObjectManagerClientFlags  flags,
+                                                                               const gchar                   *name,
+                                                                               const gchar                   *object_path,
+                                                                               GDBusProxyTypeFunc             get_proxy_type_func,
+                                                                               gpointer                       get_proxy_type_user_data,
+                                                                               GDestroyNotify                 get_proxy_type_destroy_notify,
+                                                                               GCancellable                  *cancellable,
+                                                                               GError                       **error);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection              *g_dbus_object_manager_client_get_connection     (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManagerClientFlags g_dbus_object_manager_client_get_flags          (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+const gchar                  *g_dbus_object_manager_client_get_name           (GDBusObjectManagerClient      *manager);
+GLIB_AVAILABLE_IN_ALL
+gchar                        *g_dbus_object_manager_client_get_name_owner     (GDBusObjectManagerClient      *manager);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_CLIENT_H */
+/* GDBus - GLib D-Bus Library
+ *
+ * Copyright (C) 2008-2010 Red Hat, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: David Zeuthen <davidz@redhat.com>
+ */
+
+#ifndef __G_DBUS_OBJECT_MANAGER_SERVER_H__
+#define __G_DBUS_OBJECT_MANAGER_SERVER_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_OBJECT_MANAGER_SERVER         (g_dbus_object_manager_server_get_type ())
+#define G_DBUS_OBJECT_MANAGER_SERVER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServer))
+#define G_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
+#define G_DBUS_OBJECT_MANAGER_SERVER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER, GDBusObjectManagerServerClass))
+#define G_IS_DBUS_OBJECT_MANAGER_SERVER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
+#define G_IS_DBUS_OBJECT_MANAGER_SERVER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), G_TYPE_DBUS_OBJECT_MANAGER_SERVER))
+
+typedef struct _GDBusObjectManagerServerClass   GDBusObjectManagerServerClass;
+typedef struct _GDBusObjectManagerServerPrivate GDBusObjectManagerServerPrivate;
+
+/**
+ * GDBusObjectManagerServer:
+ *
+ * The #GDBusObjectManagerServer structure contains private data and should
+ * only be accessed using the provided API.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerServer
+{
+  /*< private >*/
+  GObject parent_instance;
+  GDBusObjectManagerServerPrivate *priv;
+};
+
+/**
+ * GDBusObjectManagerServerClass:
+ * @parent_class: The parent class.
+ *
+ * Class structure for #GDBusObjectManagerServer.
+ *
+ * Since: 2.30
+ */
+struct _GDBusObjectManagerServerClass
+{
+  GObjectClass parent_class;
+
+  /*< private >*/
+  gpointer padding[8];
+};
+
+GLIB_AVAILABLE_IN_ALL
+GType                     g_dbus_object_manager_server_get_type            (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_ALL
+GDBusObjectManagerServer *g_dbus_object_manager_server_new                 (const gchar               *object_path);
+GLIB_AVAILABLE_IN_ALL
+GDBusConnection          *g_dbus_object_manager_server_get_connection      (GDBusObjectManagerServer  *manager);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_set_connection      (GDBusObjectManagerServer  *manager,
+                                                                            GDBusConnection           *connection);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_export              (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+void                      g_dbus_object_manager_server_export_uniquely     (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+gboolean                  g_dbus_object_manager_server_is_exported         (GDBusObjectManagerServer  *manager,
+                                                                            GDBusObjectSkeleton       *object);
+GLIB_AVAILABLE_IN_ALL
+gboolean                  g_dbus_object_manager_server_unexport            (GDBusObjectManagerServer  *manager,
+                                                                            const gchar               *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_OBJECT_MANAGER_SERVER_H */
+/*
+ * Copyright © 2010 Codethink Limited
+ * Copyright © 2011 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_DBUS_ACTION_GROUP_H__
+#define __G_DBUS_ACTION_GROUP_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_ACTION_GROUP                            (g_dbus_action_group_get_type ())
+#define G_DBUS_ACTION_GROUP(inst)                           (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroup))
+#define G_DBUS_ACTION_GROUP_CLASS(class)                    (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
+#define G_IS_DBUS_ACTION_GROUP(inst)                        (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_DBUS_ACTION_GROUP))
+#define G_IS_DBUS_ACTION_GROUP_CLASS(class)                 (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_DBUS_ACTION_GROUP))
+#define G_DBUS_ACTION_GROUP_GET_CLASS(inst)                 (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_DBUS_ACTION_GROUP, GDBusActionGroupClass))
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_dbus_action_group_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+GDBusActionGroup *      g_dbus_action_group_get                       (GDBusConnection        *connection,
+                                                                       const gchar            *bus_name,
+                                                                       const gchar            *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_ACTION_GROUP_H__ */
+/*
+ * Copyright © 2011 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_REMOTE_ACTION_GROUP_H__
+#define __G_REMOTE_ACTION_GROUP_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+
+#define G_TYPE_REMOTE_ACTION_GROUP                          (g_remote_action_group_get_type ())
+#define G_REMOTE_ACTION_GROUP(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                      \
+                                                             G_TYPE_REMOTE_ACTION_GROUP, GRemoteActionGroup))
+#define G_IS_REMOTE_ACTION_GROUP(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                      \
+                                                             G_TYPE_REMOTE_ACTION_GROUP))
+#define G_REMOTE_ACTION_GROUP_GET_IFACE(inst)               (G_TYPE_INSTANCE_GET_INTERFACE ((inst),                   \
+                                                             G_TYPE_REMOTE_ACTION_GROUP,                              \
+                                                             GRemoteActionGroupInterface))
+
+typedef struct _GRemoteActionGroupInterface                 GRemoteActionGroupInterface;
+
+struct _GRemoteActionGroupInterface
+{
+  GTypeInterface g_iface;
+
+  void (* activate_action_full)     (GRemoteActionGroup *remote,
+                                     const gchar        *action_name,
+                                     GVariant           *parameter,
+                                     GVariant           *platform_data);
+
+  void (* change_action_state_full) (GRemoteActionGroup *remote,
+                                     const gchar        *action_name,
+                                     GVariant           *value,
+                                     GVariant           *platform_data);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_remote_action_group_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_remote_action_group_activate_action_full      (GRemoteActionGroup *remote,
+                                                                         const gchar        *action_name,
+                                                                         GVariant           *parameter,
+                                                                         GVariant           *platform_data);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_remote_action_group_change_action_state_full  (GRemoteActionGroup *remote,
+                                                                         const gchar        *action_name,
+                                                                         GVariant           *value,
+                                                                         GVariant           *platform_data);
+
+G_END_DECLS
+
+#endif /* __G_REMOTE_ACTION_GROUP_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_MODEL_H__
+#define __G_MENU_MODEL_H__
+
+
+
+G_BEGIN_DECLS
+
+/**
+ * G_MENU_ATTRIBUTE_ACTION:
+ *
+ * The menu item attribute which holds the action name of the item.  Action
+ * names are namespaced with an identifier for the action group in which the
+ * action resides. For example, "win." for window-specific actions and "app."
+ * for application-wide actions.
+ *
+ * See also g_menu_model_get_item_attribute() and g_menu_item_set_attribute().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_ACTION "action"
+
+/**
+ * G_MENU_ATTRIBUTE_ACTION_NAMESPACE:
+ *
+ * The menu item attribute that holds the namespace for all action names in
+ * menus that are linked from this item.
+ *
+ * Since: 2.36
+ **/
+#define G_MENU_ATTRIBUTE_ACTION_NAMESPACE "action-namespace"
+
+/**
+ * G_MENU_ATTRIBUTE_TARGET:
+ *
+ * The menu item attribute which holds the target with which the item's action
+ * will be activated.
+ *
+ * See also g_menu_item_set_action_and_target()
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_TARGET "target"
+
+/**
+ * G_MENU_ATTRIBUTE_LABEL:
+ *
+ * The menu item attribute which holds the label of the item.
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_ATTRIBUTE_LABEL "label"
+
+/**
+ * G_MENU_ATTRIBUTE_ICON:
+ *
+ * The menu item attribute which holds the icon of the item.
+ *
+ * The icon is stored in the format returned by g_icon_serialize().
+ *
+ * This attribute is intended only to represent 'noun' icons such as
+ * favicons for a webpage, or application icons.  It should not be used
+ * for 'verbs' (ie: stock icons).
+ *
+ * Since: 2.38
+ **/
+#define G_MENU_ATTRIBUTE_ICON "icon"
+
+/**
+ * G_MENU_LINK_SUBMENU:
+ *
+ * The name of the link that associates a menu item with a submenu.
+ *
+ * See also g_menu_item_set_link().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_LINK_SUBMENU "submenu"
+
+/**
+ * G_MENU_LINK_SECTION:
+ *
+ * The name of the link that associates a menu item with a section.  The linked
+ * menu will usually be shown in place of the menu item, using the item's label
+ * as a header.
+ *
+ * See also g_menu_item_set_link().
+ *
+ * Since: 2.32
+ **/
+#define G_MENU_LINK_SECTION "section"
+
+#define G_TYPE_MENU_MODEL                                   (g_menu_model_get_type ())
+#define G_MENU_MODEL(inst)                                  (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_MODEL, GMenuModel))
+#define G_MENU_MODEL_CLASS(class)                           (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
+#define G_IS_MENU_MODEL(inst)                               (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_MODEL))
+#define G_IS_MENU_MODEL_CLASS(class)                        (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_MODEL))
+#define G_MENU_MODEL_GET_CLASS(inst)                        (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_MODEL, GMenuModelClass))
+
+typedef struct _GMenuModelPrivate                           GMenuModelPrivate;
+typedef struct _GMenuModelClass                             GMenuModelClass;
+
+typedef struct _GMenuAttributeIterPrivate                   GMenuAttributeIterPrivate;
+typedef struct _GMenuAttributeIterClass                     GMenuAttributeIterClass;
+typedef struct _GMenuAttributeIter                          GMenuAttributeIter;
+
+typedef struct _GMenuLinkIterPrivate                        GMenuLinkIterPrivate;
+typedef struct _GMenuLinkIterClass                          GMenuLinkIterClass;
+typedef struct _GMenuLinkIter                               GMenuLinkIter;
+
+struct _GMenuModel
+{
+  GObject            parent_instance;
+  GMenuModelPrivate *priv;
+};
+
+/**
+ * GMenuModelClass::get_item_attributes:
+ * @model: the #GMenuModel to query
+ * @item_index: The #GMenuItem to query
+ * @attributes: (out) (element-type utf8 GLib.Variant): Attributes on the item
+ *
+ * Gets all the attributes associated with the item in the menu model.
+ */
+/**
+ * GMenuModelClass::get_item_links:
+ * @model: the #GMenuModel to query
+ * @item_index: The #GMenuItem to query
+ * @links: (out) (element-type utf8 Gio.MenuModel): Links from the item
+ *
+ * Gets all the links associated with the item in the menu model.
+ */
+struct _GMenuModelClass
+{
+  GObjectClass parent_class;
+
+  gboolean              (*is_mutable)                       (GMenuModel          *model);
+  gint                  (*get_n_items)                      (GMenuModel          *model);
+  void                  (*get_item_attributes)              (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             GHashTable         **attributes);
+  GMenuAttributeIter *  (*iterate_item_attributes)          (GMenuModel          *model,
+                                                             gint                 item_index);
+  GVariant *            (*get_item_attribute_value)         (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             const gchar         *attribute,
+                                                             const GVariantType  *expected_type);
+  void                  (*get_item_links)                   (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             GHashTable         **links);
+  GMenuLinkIter *       (*iterate_item_links)               (GMenuModel          *model,
+                                                             gint                 item_index);
+  GMenuModel *          (*get_item_link)                    (GMenuModel          *model,
+                                                             gint                 item_index,
+                                                             const gchar         *link);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_model_get_type                           (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_model_is_mutable                         (GMenuModel         *model);
+GLIB_AVAILABLE_IN_2_32
+gint                    g_menu_model_get_n_items                        (GMenuModel         *model);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuAttributeIter *    g_menu_model_iterate_item_attributes            (GMenuModel         *model,
+                                                                         gint                item_index);
+GLIB_AVAILABLE_IN_2_32
+GVariant *              g_menu_model_get_item_attribute_value           (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *attribute,
+                                                                         const GVariantType *expected_type);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_model_get_item_attribute                 (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *attribute,
+                                                                         const gchar        *format_string,
+                                                                         ...);
+GLIB_AVAILABLE_IN_2_32
+GMenuLinkIter *         g_menu_model_iterate_item_links                 (GMenuModel         *model,
+                                                                         gint                item_index);
+GLIB_AVAILABLE_IN_2_32
+GMenuModel *            g_menu_model_get_item_link                      (GMenuModel         *model,
+                                                                         gint                item_index,
+                                                                         const gchar        *link);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_menu_model_items_changed                      (GMenuModel         *model,
+                                                                         gint                position,
+                                                                         gint                removed,
+                                                                         gint                added);
+
+
+#define G_TYPE_MENU_ATTRIBUTE_ITER                          (g_menu_attribute_iter_get_type ())
+#define G_MENU_ATTRIBUTE_ITER(inst)                         (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIter))
+#define G_MENU_ATTRIBUTE_ITER_CLASS(class)                  (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
+#define G_IS_MENU_ATTRIBUTE_ITER(inst)                      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
+#define G_IS_MENU_ATTRIBUTE_ITER_CLASS(class)               (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER))
+#define G_MENU_ATTRIBUTE_ITER_GET_CLASS(inst)               (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_ATTRIBUTE_ITER, GMenuAttributeIterClass))
+
+struct _GMenuAttributeIter
+{
+  GObject parent_instance;
+  GMenuAttributeIterPrivate *priv;
+};
+
+struct _GMenuAttributeIterClass
+{
+  GObjectClass parent_class;
+
+  gboolean      (*get_next) (GMenuAttributeIter  *iter,
+                             const gchar        **out_name,
+                             GVariant           **value);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_attribute_iter_get_type                  (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_attribute_iter_get_next                  (GMenuAttributeIter  *iter,
+                                                                         const gchar        **out_name,
+                                                                         GVariant           **value);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_attribute_iter_next                      (GMenuAttributeIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+const gchar *           g_menu_attribute_iter_get_name                  (GMenuAttributeIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+GVariant *              g_menu_attribute_iter_get_value                 (GMenuAttributeIter  *iter);
+
+
+#define G_TYPE_MENU_LINK_ITER                               (g_menu_link_iter_get_type ())
+#define G_MENU_LINK_ITER(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIter))
+#define G_MENU_LINK_ITER_CLASS(class)                       (G_TYPE_CHECK_CLASS_CAST ((class),                       \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
+#define G_IS_MENU_LINK_ITER(inst)                           (G_TYPE_CHECK_INSTANCE_TYPE ((inst),                     \
+                                                             G_TYPE_MENU_LINK_ITER))
+#define G_IS_MENU_LINK_ITER_CLASS(class)                    (G_TYPE_CHECK_CLASS_TYPE ((class),                       \
+                                                             G_TYPE_MENU_LINK_ITER))
+#define G_MENU_LINK_ITER_GET_CLASS(inst)                    (G_TYPE_INSTANCE_GET_CLASS ((inst),                      \
+                                                             G_TYPE_MENU_LINK_ITER, GMenuLinkIterClass))
+
+struct _GMenuLinkIter
+{
+  GObject parent_instance;
+  GMenuLinkIterPrivate *priv;
+};
+
+struct _GMenuLinkIterClass
+{
+  GObjectClass parent_class;
+
+  gboolean      (*get_next) (GMenuLinkIter  *iter,
+                             const gchar   **out_link,
+                             GMenuModel    **value);
+};
+
+GLIB_AVAILABLE_IN_2_32
+GType                   g_menu_link_iter_get_type                       (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_link_iter_get_next                       (GMenuLinkIter  *iter,
+                                                                         const gchar   **out_link,
+                                                                         GMenuModel    **value);
+GLIB_AVAILABLE_IN_2_32
+gboolean                g_menu_link_iter_next                           (GMenuLinkIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+const gchar *           g_menu_link_iter_get_name                       (GMenuLinkIter  *iter);
+GLIB_AVAILABLE_IN_2_32
+GMenuModel *            g_menu_link_iter_get_value                      (GMenuLinkIter  *iter);
+
+G_END_DECLS
+
+#endif /* __G_MENU_MODEL_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_H__
+#define __G_MENU_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_MENU          (g_menu_get_type ())
+#define G_MENU(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
+                              G_TYPE_MENU, GMenu))
+#define G_IS_MENU(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
+                              G_TYPE_MENU))
+
+#define G_TYPE_MENU_ITEM     (g_menu_item_get_type ())
+#define G_MENU_ITEM(inst)    (G_TYPE_CHECK_INSTANCE_CAST ((inst), \
+                              G_TYPE_MENU_ITEM, GMenuItem))
+#define G_IS_MENU_ITEM(inst) (G_TYPE_CHECK_INSTANCE_TYPE ((inst), \
+                              G_TYPE_MENU_ITEM))
+
+typedef struct _GMenuItem GMenuItem;
+typedef struct _GMenu     GMenu;
+
+GLIB_AVAILABLE_IN_2_32
+GType       g_menu_get_type                         (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_32
+GMenu *     g_menu_new                              (void);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_freeze                           (GMenu       *menu);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_item                      (GMenu       *menu,
+                                                     gint         position,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_item                     (GMenu       *menu,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_item                      (GMenu       *menu,
+                                                     GMenuItem   *item);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_remove                           (GMenu       *menu,
+                                                     gint         position);
+
+GLIB_AVAILABLE_IN_2_38
+void        g_menu_remove_all                       (GMenu       *menu);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert                           (GMenu       *menu,
+                                                     gint         position,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend                          (GMenu       *menu,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append                           (GMenu       *menu,
+                                                     const gchar *label,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_section                   (GMenu       *menu,
+                                                     gint         position,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_section                  (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_section                   (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *section);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_insert_submenu                   (GMenu       *menu,
+                                                     gint        position,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_prepend_submenu                  (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_append_submenu                   (GMenu       *menu,
+                                                     const gchar *label,
+                                                     GMenuModel  *submenu);
+
+
+GLIB_AVAILABLE_IN_2_32
+GType       g_menu_item_get_type                    (void) G_GNUC_CONST;
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new                         (const gchar *label,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_34
+GMenuItem * g_menu_item_new_from_model              (GMenuModel  *model,
+                                                     gint         item_index);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new_submenu                 (const gchar *label,
+                                                     GMenuModel  *submenu);
+
+GLIB_AVAILABLE_IN_2_32
+GMenuItem * g_menu_item_new_section                 (const gchar *label,
+                                                     GMenuModel  *section);
+
+GLIB_AVAILABLE_IN_2_34
+GVariant *  g_menu_item_get_attribute_value         (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const GVariantType *expected_type);
+GLIB_AVAILABLE_IN_2_34
+gboolean    g_menu_item_get_attribute               (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_34
+GMenuModel *g_menu_item_get_link                    (GMenuItem   *menu_item,
+                                                     const gchar *link);
+
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_attribute_value         (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     GVariant    *value);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_attribute               (GMenuItem   *menu_item,
+                                                     const gchar *attribute,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_link                    (GMenuItem   *menu_item,
+                                                     const gchar *link,
+                                                     GMenuModel  *model);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_label                   (GMenuItem   *menu_item,
+                                                     const gchar *label);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_submenu                 (GMenuItem   *menu_item,
+                                                     GMenuModel  *submenu);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_section                 (GMenuItem   *menu_item,
+                                                     GMenuModel  *section);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_action_and_target_value (GMenuItem   *menu_item,
+                                                     const gchar *action,
+                                                     GVariant    *target_value);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_action_and_target       (GMenuItem   *menu_item,
+                                                     const gchar *action,
+                                                     const gchar *format_string,
+                                                     ...);
+GLIB_AVAILABLE_IN_2_32
+void        g_menu_item_set_detailed_action         (GMenuItem   *menu_item,
+                                                     const gchar *detailed_action);
+
+GLIB_AVAILABLE_IN_2_38
+void        g_menu_item_set_icon                    (GMenuItem   *menu_item,
+                                                     GIcon       *icon);
+
+G_END_DECLS
+
+#endif /* __G_MENU_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_MENU_EXPORTER_H__
+#define __G_MENU_EXPORTER_H__
+
+
+G_BEGIN_DECLS
+
+GLIB_AVAILABLE_IN_2_32
+guint                   g_dbus_connection_export_menu_model             (GDBusConnection  *connection,
+                                                                         const gchar      *object_path,
+                                                                         GMenuModel       *menu,
+                                                                         GError          **error);
+
+GLIB_AVAILABLE_IN_2_32
+void                    g_dbus_connection_unexport_menu_model           (GDBusConnection  *connection,
+                                                                         guint             export_id);
+
+G_END_DECLS
+
+#endif /* __G_MENU_EXPORTER_H__ */
+/*
+ * Copyright © 2011 Canonical Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_DBUS_MENU_MODEL_H__
+#define __G_DBUS_MENU_MODEL_H__
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_DBUS_MENU_MODEL          (g_dbus_menu_model_get_type ())
+#define G_DBUS_MENU_MODEL(inst)         (G_TYPE_CHECK_INSTANCE_CAST ((inst),   \
+                                         G_TYPE_DBUS_MENU_MODEL, GDBusMenuModel))
+#define G_IS_DBUS_MENU_MODEL(inst)      (G_TYPE_CHECK_INSTANCE_TYPE ((inst),   \
+                                         G_TYPE_DBUS_MENU_MODEL))
+
+typedef struct _GDBusMenuModel GDBusMenuModel;
+
+GLIB_AVAILABLE_IN_ALL
+GType                   g_dbus_menu_model_get_type     (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_ALL
+GDBusMenuModel *        g_dbus_menu_model_get          (GDBusConnection *connection,
+                                                        const gchar     *bus_name,
+                                                        const gchar     *object_path);
+
+G_END_DECLS
+
+#endif /* __G_DBUS_MENU_MODEL_H__ */
+/*
+ * Copyright © 2013 Lars Uebernickel
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Lars Uebernickel <lars@uebernic.de>
+ */
+
+#ifndef __G_NOTIFICATION_H__
+#define __G_NOTIFICATION_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_NOTIFICATION         (g_notification_get_type ())
+#define G_NOTIFICATION(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), G_TYPE_NOTIFICATION, GNotification))
+#define G_IS_NOTIFICATION(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), G_TYPE_NOTIFICATION))
+
+GLIB_AVAILABLE_IN_2_40
+GType                   g_notification_get_type                         (void) G_GNUC_CONST;
+
+GLIB_AVAILABLE_IN_2_40
+GNotification *         g_notification_new                              (const gchar *title);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_title                        (GNotification *notification,
+                                                                         const gchar   *title);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_body                         (GNotification *notification,
+                                                                         const gchar   *body);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_icon                         (GNotification *notification,
+                                                                         GIcon         *icon);
+
+GLIB_DEPRECATED_IN_2_42_FOR(g_notification_set_priority)
+void                    g_notification_set_urgent                       (GNotification *notification,
+                                                                         gboolean       urgent);
+
+GLIB_AVAILABLE_IN_2_42
+void                    g_notification_set_priority                     (GNotification         *notification,
+                                                                         GNotificationPriority  priority);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button                       (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *detailed_action);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button_with_target           (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *action,
+                                                                         const gchar   *target_format,
+                                                                         ...);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_add_button_with_target_value     (GNotification *notification,
+                                                                         const gchar   *label,
+                                                                         const gchar   *action,
+                                                                         GVariant      *target);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_default_action               (GNotification *notification,
+                                                                         const gchar   *detailed_action);
+
+GLIB_AVAILABLE_IN_2_40
+void                    g_notification_set_default_action_and_target    (GNotification *notification,
+                                                                         const gchar   *action,
+                                                                         const gchar   *target_format,
+                                                                         ...);
+
+GLIB_AVAILABLE_IN_2_40
+void                 g_notification_set_default_action_and_target_value (GNotification *notification,
+                                                                         const gchar   *action,
+                                                                         GVariant      *target);
+
+G_END_DECLS
+
+#endif
+/*
+ * Copyright 2015 Lars Uebernickel
+ * Copyright 2015 Ryan Lortie
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors:
+ *     Lars Uebernickel <lars@uebernic.de>
+ *     Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_LIST_MODEL_H__
+#define __G_LIST_MODEL_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_LIST_MODEL g_list_model_get_type ()
+GLIB_AVAILABLE_IN_2_44
+G_DECLARE_INTERFACE(GListModel, g_list_model, G, LIST_MODEL, GObject)
+
+struct _GListModelInterface
+{
+  GTypeInterface g_iface;
+
+  GType     (* get_item_type)   (GListModel *list);
+
+  guint     (* get_n_items)     (GListModel *list);
+
+  gpointer  (* get_item)        (GListModel *list,
+                                 guint       position);
+};
+
+GLIB_AVAILABLE_IN_2_44
+GType                   g_list_model_get_item_type                      (GListModel *list);
+
+GLIB_AVAILABLE_IN_2_44
+guint                   g_list_model_get_n_items                        (GListModel *list);
+
+GLIB_AVAILABLE_IN_2_44
+gpointer                g_list_model_get_item                           (GListModel *list,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+GObject *               g_list_model_get_object                         (GListModel *list,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_model_items_changed                      (GListModel *list,
+                                                                         guint       position,
+                                                                         guint       removed,
+                                                                         guint       added);
+
+G_END_DECLS
+
+#endif /* __G_LIST_MODEL_H__ */
+/*
+ * Copyright 2015 Lars Uebernickel
+ * Copyright 2015 Ryan Lortie
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General
+ * Public License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors:
+ *     Lars Uebernickel <lars@uebernic.de>
+ *     Ryan Lortie <desrt@desrt.ca>
+ */
+
+#ifndef __G_LIST_STORE_H__
+#define __G_LIST_STORE_H__
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define G_TYPE_LIST_STORE (g_list_store_get_type ())
+GLIB_AVAILABLE_IN_2_44
+G_DECLARE_FINAL_TYPE(GListStore, g_list_store, G, LIST_STORE, GObject)
+
+GLIB_AVAILABLE_IN_2_44
+GListStore *            g_list_store_new                                (GType       item_type);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_insert                             (GListStore *store,
+                                                                         guint       position,
+                                                                         gpointer    item);
+
+GLIB_AVAILABLE_IN_2_44
+guint                   g_list_store_insert_sorted                      (GListStore       *store,
+                                                                         gpointer          item,
+                                                                         GCompareDataFunc  compare_func,
+                                                                         gpointer          user_data);
+
+GLIB_AVAILABLE_IN_2_46
+void                   g_list_store_sort                                (GListStore       *store,
+                                                                         GCompareDataFunc  compare_func,
+                                                                         gpointer          user_data);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_append                             (GListStore *store,
+                                                                         gpointer    item);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_remove                             (GListStore *store,
+                                                                         guint       position);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_remove_all                         (GListStore *store);
+
+GLIB_AVAILABLE_IN_2_44
+void                    g_list_store_splice                             (GListStore *store,
+                                                                         guint       position,
+                                                                         guint       n_removals,
+                                                                         gpointer   *additions,
+                                                                         guint       n_additions);
+
+G_END_DECLS
+
+#endif /* __G_LIST_STORE_H__ */
+
+/*
+ * Copyright © 2015 Canonical Limited
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author: Ryan Lortie <desrt@desrt.ca>
+ */
+
+#if !defined (__GIO_GIO_H_INSIDE__) && !defined (GIO_COMPILATION)
+#error "Only <gio/gio.h> can be included directly."
+#endif
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAction, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GActionMap, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAppInfo, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAppLaunchContext, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAppInfoMonitor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GApplicationCommandLine, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GApplication, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAsyncInitable, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GAsyncResult, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GBufferedInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GBufferedOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GBytesIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GCancellable, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GCharsetConverter, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GConverter, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GConverterInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GConverterOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GCredentials, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDatagramBased, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDataInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDataOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusActionGroup, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusAuthObserver, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusInterface, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusInterfaceSkeleton, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusMenuModel, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusMessage, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusMethodInvocation, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusNodeInfo, g_dbus_node_info_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObject, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObjectManagerClient, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObjectManager, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObjectManagerServer, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObjectProxy, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusObjectSkeleton, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusProxy, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusServer, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDrive, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GEmblemedIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GEmblem, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileEnumerator, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFile, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileAttributeInfoList, g_file_attribute_info_list_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileInfo, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileIOStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileMonitor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFilenameCompleter, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFileOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFilterInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GFilterOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GInetAddress, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GInetAddressMask, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GInetSocketAddress, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GInitable, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GIOModule, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GIOStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GLoadableIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMemoryInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMemoryOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMenu, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMenuItem, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMenuModel, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMenuAttributeIter, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMenuLinkIter, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMount, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GMountOperation, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GNativeVolumeMonitor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GNetworkAddress, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GNetworkMonitor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GNetworkService, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GNotification, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GPermission, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GPollableInputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GPollableOutputStream, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GPropertyAction, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GProxyAddressEnumerator, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GProxyAddress, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GProxy, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GProxyResolver, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GRemoteActionGroup, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GResolver, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GResource, g_resource_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSeekable, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSettingsBackend, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSettingsSchema, g_settings_schema_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSettingsSchemaKey, g_settings_schema_key_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSettingsSchemaSource, g_settings_schema_source_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSettings, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSimpleActionGroup, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSimpleAction, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSimpleAsyncResult, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSimplePermission, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSimpleProxyResolver, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketAddressEnumerator, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketAddress, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketClient, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketConnectable, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketControlMessage, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocket, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketListener, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSocketService, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSubprocess, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSubprocessLauncher, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTask, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTcpConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTcpWrapperConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTestDBus, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GThemedIcon, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GThreadedSocketService, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsBackend, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsCertificate, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsClientConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsDatabase, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsFileDatabase, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsInteraction, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsPassword, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GTlsServerConnection, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GVfs, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GVolume, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GVolumeMonitor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GZlibCompressor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GZlibDecompressor, g_object_unref)
+
+#undef __GIO_GIO_H_INSIDE__
+
+G_BEGIN_DECLS
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_init (void);
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_shutdown (void);
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_deinit (void);
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_prepare_to_fork (void);
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_recover_from_fork_in_parent (void);
+
+GLIB_AVAILABLE_IN_2_62
+void                            gio_recover_from_fork_in_child (void);
+
+G_END_DECLS
+
+#endif /* __G_IO_H__ */
+/* json-glib.h: Main header
+ *
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_GLIB_H__
+#define __JSON_GLIB_H__
+
+#define __JSON_GLIB_INSIDE__
+
+/* json-types.h - JSON data types
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_TYPES_H__
+#define __JSON_TYPES_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+/* json-version-macros.h - JSON-GLib symbol versioning macros
+ * 
+ * This file is part of JSON-GLib
+ * Copyright © 2014  Emmanuele Bassi
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __JSON_VERSION_MACROS_H__
+#define __JSON_VERSION_MACROS_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+/* json-version.h - JSON-GLib versioning information
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_VERSION_H__
+#define __JSON_VERSION_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+/**
+ * SECTION:json-version
+ * @short_description: JSON-GLib version checking
+ *
+ * JSON-GLib provides macros to check the version of the library
+ * at compile-time
+ */
+
+/**
+ * JSON_MAJOR_VERSION:
+ *
+ * Json major version component (e.g. 1 if %JSON_VERSION is 1.2.3)
+ */
+#define JSON_MAJOR_VERSION              (1)
+
+/**
+ * JSON_MINOR_VERSION:
+ *
+ * Json minor version component (e.g. 2 if %JSON_VERSION is 1.2.3)
+ */
+#define JSON_MINOR_VERSION              (5)
+
+/**
+ * JSON_MICRO_VERSION:
+ *
+ * Json micro version component (e.g. 3 if %JSON_VERSION is 1.2.3)
+ */
+#define JSON_MICRO_VERSION              (1)
+
+/**
+ * JSON_VERSION
+ *
+ * Json version.
+ */
+#define JSON_VERSION                    (1.5.1)
+
+/**
+ * JSON_VERSION_S:
+ *
+ * JSON-GLib version, encoded as a string, useful for printing and
+ * concatenation.
+ */
+#define JSON_VERSION_S                  "1.5.1"
+
+#define JSON_ENCODE_VERSION(major,minor,micro) \
+        ((major) << 24 | (minor) << 16 | (micro) << 8)
+
+/**
+ * JSON_VERSION_HEX:
+ *
+ * JSON-GLib version, encoded as an hexadecimal number, useful for
+ * integer comparisons.
+ */
+#define JSON_VERSION_HEX \
+        (JSON_ENCODE_VERSION (JSON_MAJOR_VERSION, JSON_MINOR_VERSION, JSON_MICRO_VERSION))
+
+/**
+ * JSON_CHECK_VERSION:
+ * @major: required major version
+ * @minor: required minor version
+ * @micro: required micro version
+ *
+ * Compile-time version checking. Evaluates to %TRUE if the version
+ * of Json is greater than the required one.
+ */
+#define JSON_CHECK_VERSION(major,minor,micro)   \
+        (JSON_MAJOR_VERSION > (major) || \
+         (JSON_MAJOR_VERSION == (major) && JSON_MINOR_VERSION > (minor)) || \
+         (JSON_MAJOR_VERSION == (major) && JSON_MINOR_VERSION == (minor) && \
+          JSON_MICRO_VERSION >= (micro)))
+
+#endif /* __JSON_VERSION_H__ */
+
+#ifndef _JSON_EXTERN
+#define _JSON_EXTERN extern
+#endif
+
+#ifdef JSON_DISABLE_DEPRECATION_WARNINGS
+#define JSON_DEPRECATED _JSON_EXTERN
+#define JSON_DEPRECATED_FOR(f) _JSON_EXTERN
+#define JSON_UNAVAILABLE(maj,min) _JSON_EXTERN
+#else
+#define JSON_DEPRECATED G_DEPRECATED _JSON_EXTERN
+#define JSON_DEPRECATED_FOR(f) G_DEPRECATED_FOR(f) _JSON_EXTERN
+#define JSON_UNAVAILABLE(maj,min) G_UNAVAILABLE(maj,min) _JSON_EXTERN
+#endif
+
+/* XXX: Each new cycle should add a new version symbol here */
+#define JSON_VERSION_1_0        (G_ENCODE_VERSION (1, 0))
+
+#define JSON_VERSION_1_2        (G_ENCODE_VERSION (1, 2))
+
+#define JSON_VERSION_1_4        (G_ENCODE_VERSION (1, 4))
+
+#define JSON_VERSION_1_6        (G_ENCODE_VERSION (1, 6))
+
+/* evaluates to the current stable version; for development cycles,
+ * this means the next stable target
+ */
+#if (JSON_MINOR_VERSION == 99)
+#define JSON_VERSION_CUR_STABLE         (G_ENCODE_VERSION (JSON_MAJOR_VERSION + 1, 0))
+#elif (JSON_MINOR_VERSION % 2)
+#define JSON_VERSION_CUR_STABLE         (G_ENCODE_VERSION (JSON_MAJOR_VERSION, JSON_MINOR_VERSION + 1))
+#else
+#define JSON_VERSION_CUR_STABLE         (G_ENCODE_VERSION (JSON_MAJOR_VERSION, JSON_MINOR_VERSION))
+#endif
+
+/* evaluates to the previous stable version */
+#if (JSON_MINOR_VERSION == 99)
+#define JSON_VERSION_PREV_STABLE        (G_ENCODE_VERSION (JSON_MAJOR_VERSION + 1, 0))
+#elif (JSON_MINOR_VERSION % 2)
+#define JSON_VERSION_PREV_STABLE        (G_ENCODE_VERSION (JSON_MAJOR_VERSION, JSON_MINOR_VERSION - 1))
+#else
+#define JSON_VERSION_PREV_STABLE        (G_ENCODE_VERSION (JSON_MAJOR_VERSION, JSON_MINOR_VERSION - 2))
+#endif
+
+/**
+ * JSON_VERSION_MIN_REQUIRED:
+ *
+ * A macro that should be defined by the user prior to including
+ * the gdk.h header.
+ * The definition should be one of the predefined JSON version
+ * macros: %JSON_VERSION_1_0, %JSON_VERSION_1_2,...
+ *
+ * This macro defines the lower bound for the JSON-GLib API to use.
+ *
+ * If a function has been deprecated in a newer version of JSON-GLib,
+ * it is possible to use this symbol to avoid the compiler warnings
+ * without disabling warning for every deprecated function.
+ *
+ * Since: 1.0
+ */
+#ifndef JSON_VERSION_MIN_REQUIRED
+# define JSON_VERSION_MIN_REQUIRED      (JSON_VERSION_CUR_STABLE)
+#endif
+
+/**
+ * JSON_VERSION_MAX_ALLOWED:
+ *
+ * A macro that should be defined by the user prior to including
+ * the json-glib.h header.
+
+ * The definition should be one of the predefined JSON-GLib version
+ * macros: %JSON_VERSION_1_0, %JSON_VERSION_1_2,...
+ *
+ * This macro defines the upper bound for the JSON API-GLib to use.
+ *
+ * If a function has been introduced in a newer version of JSON-GLib,
+ * it is possible to use this symbol to get compiler warnings when
+ * trying to use that function.
+ *
+ * Since: 1.0
+ */
+#ifndef JSON_VERSION_MAX_ALLOWED
+# if JSON_VERSION_MIN_REQUIRED > JSON_VERSION_PREV_STABLE
+#  define JSON_VERSION_MAX_ALLOWED      (JSON_VERSION_MIN_REQUIRED)
+# else
+#  define JSON_VERSION_MAX_ALLOWED      (JSON_VERSION_CUR_STABLE)
+# endif
+#endif
+
+/* sanity checks */
+#if JSON_VERSION_MAX_ALLOWED < JSON_VERSION_MIN_REQUIRED
+#error "JSON_VERSION_MAX_ALLOWED must be >= JSON_VERSION_MIN_REQUIRED"
+#endif
+#if JSON_VERSION_MIN_REQUIRED < JSON_VERSION_1_0
+#error "JSON_VERSION_MIN_REQUIRED must be >= JSON_VERSION_1_0"
+#endif
+
+/* XXX: Every new stable minor release should add a set of macros here */
+
+/* 1.0 */
+#if JSON_VERSION_MIN_REQUIRED >= JSON_VERSION_1_0
+# define JSON_DEPRECATED_IN_1_0                JSON_DEPRECATED
+# define JSON_DEPRECATED_IN_1_0_FOR(f)         JSON_DEPRECATED_FOR(f)
+#else
+# define JSON_DEPRECATED_IN_1_0                _JSON_EXTERN
+# define JSON_DEPRECATED_IN_1_0_FOR(f)         _JSON_EXTERN
+#endif
+
+#if JSON_VERSION_MAX_ALLOWED < JSON_VERSION_1_0
+# define JSON_AVAILABLE_IN_1_0                 JSON_UNAVAILABLE(1, 0)
+#else
+# define JSON_AVAILABLE_IN_1_0                 _JSON_EXTERN
+#endif
+
+/* 1.2 */
+#if JSON_VERSION_MIN_REQUIRED >= JSON_VERSION_1_2
+# define JSON_DEPRECATED_IN_1_2                JSON_DEPRECATED
+# define JSON_DEPRECATED_IN_1_2_FOR(f)         JSON_DEPRECATED_FOR(f)
+#else
+# define JSON_DEPRECATED_IN_1_2                _JSON_EXTERN
+# define JSON_DEPRECATED_IN_1_2_FOR(f)         _JSON_EXTERN
+#endif
+
+#if JSON_VERSION_MAX_ALLOWED < JSON_VERSION_1_2
+# define JSON_AVAILABLE_IN_1_2                 JSON_UNAVAILABLE(1, 2)
+#else
+# define JSON_AVAILABLE_IN_1_2                 _JSON_EXTERN
+#endif
+
+/* 1.4 */
+#if JSON_VERSION_MIN_REQUIRED >= JSON_VERSION_1_4
+# define JSON_DEPRECATED_IN_1_4                JSON_DEPRECATED
+# define JSON_DEPRECATED_IN_1_4_FOR(f)         JSON_DEPRECATED_FOR(f)
+#else
+# define JSON_DEPRECATED_IN_1_4                _JSON_EXTERN
+# define JSON_DEPRECATED_IN_1_4_FOR(f)         _JSON_EXTERN
+#endif
+
+#if JSON_VERSION_MAX_ALLOWED < JSON_VERSION_1_4
+# define JSON_AVAILABLE_IN_1_4                 JSON_UNAVAILABLE(1, 4)
+#else
+# define JSON_AVAILABLE_IN_1_4                 _JSON_EXTERN
+#endif
+
+/* 1.6 */
+#if JSON_VERSION_MIN_REQUIRED >= JSON_VERSION_1_6
+# define JSON_DEPRECATED_IN_1_6                JSON_DEPRECATED
+# define JSON_DEPRECATED_IN_1_6_FOR(f)         JSON_DEPRECATED_FOR(f)
+#else
+# define JSON_DEPRECATED_IN_1_6                _JSON_EXTERN
+# define JSON_DEPRECATED_IN_1_6_FOR(f)         _JSON_EXTERN
+#endif
+
+#if JSON_VERSION_MAX_ALLOWED < JSON_VERSION_1_6
+# define JSON_AVAILABLE_IN_1_6                 JSON_UNAVAILABLE(1, 6)
+#else
+# define JSON_AVAILABLE_IN_1_6                 _JSON_EXTERN
+#endif
+
+#endif /* __JSON_VERSION_MACROS_H__ */
+
+G_BEGIN_DECLS
+
+/**
+ * JSON_NODE_TYPE:
+ * @node: a #JsonNode
+ *
+ * Evaluates to the #JsonNodeType contained by @node
+ */
+#define JSON_NODE_TYPE(node)    (json_node_get_node_type ((node)))
+
+/**
+ * JSON_NODE_HOLDS:
+ * @node: a #JsonNode
+ * @t: a #JsonNodeType
+ *
+ * Evaluates to %TRUE if the @node holds type @t
+ *
+ * Since: 0.10
+ */
+#define JSON_NODE_HOLDS(node,t)         (json_node_get_node_type ((node)) == (t))
+
+/**
+ * JSON_NODE_HOLDS_VALUE:
+ * @node: a #JsonNode
+ *
+ * Evaluates to %TRUE if @node holds a %JSON_NODE_VALUE
+ *
+ * Since: 0.10
+ */
+#define JSON_NODE_HOLDS_VALUE(node)     (JSON_NODE_HOLDS ((node), JSON_NODE_VALUE))
+
+/**
+ * JSON_NODE_HOLDS_OBJECT:
+ * @node: a #JsonNode
+ *
+ * Evaluates to %TRUE if @node holds a %JSON_NODE_OBJECT
+ *
+ * Since: 0.10
+ */
+#define JSON_NODE_HOLDS_OBJECT(node)    (JSON_NODE_HOLDS ((node), JSON_NODE_OBJECT))
+
+/**
+ * JSON_NODE_HOLDS_ARRAY:
+ * @node: a #JsonNode
+ *
+ * Evaluates to %TRUE if @node holds a %JSON_NODE_ARRAY
+ *
+ * Since: 0.10
+ */
+#define JSON_NODE_HOLDS_ARRAY(node)     (JSON_NODE_HOLDS ((node), JSON_NODE_ARRAY))
+
+/**
+ * JSON_NODE_HOLDS_NULL:
+ * @node: a #JsonNode
+ *
+ * Evaluates to %TRUE if @node holds a %JSON_NODE_NULL
+ *
+ * Since: 0.10
+ */
+#define JSON_NODE_HOLDS_NULL(node)      (JSON_NODE_HOLDS ((node), JSON_NODE_NULL))
+
+#define JSON_TYPE_NODE          (json_node_get_type ())
+#define JSON_TYPE_OBJECT        (json_object_get_type ())
+#define JSON_TYPE_ARRAY         (json_array_get_type ())
+
+/**
+ * JsonNode:
+ *
+ * A generic container of JSON data types. The contents of the #JsonNode
+ * structure are private and should only be accessed via the provided
+ * functions and never directly.
+ */
+typedef struct _JsonNode        JsonNode;
+
+/**
+ * JsonObject:
+ *
+ * A JSON object type. The contents of the #JsonObject structure are private
+ * and should only be accessed by the provided API
+ */
+typedef struct _JsonObject      JsonObject;
+
+/**
+ * JsonArray:
+ *
+ * A JSON array type. The contents of the #JsonArray structure are private
+ * and should only be accessed by the provided API
+ */
+typedef struct _JsonArray       JsonArray;
+
+/**
+ * JsonNodeType:
+ * @JSON_NODE_OBJECT: The node contains a #JsonObject
+ * @JSON_NODE_ARRAY: The node contains a #JsonArray
+ * @JSON_NODE_VALUE: The node contains a fundamental type
+ * @JSON_NODE_NULL: Special type, for nodes containing null
+ *
+ * Indicates the content of a #JsonNode.
+ */
+typedef enum {
+  JSON_NODE_OBJECT,
+  JSON_NODE_ARRAY,
+  JSON_NODE_VALUE,
+  JSON_NODE_NULL
+} JsonNodeType;
+
+/**
+ * JsonObjectForeach:
+ * @object: the iterated #JsonObject
+ * @member_name: the name of the member
+ * @member_node: a #JsonNode containing the @member_name value
+ * @user_data: data passed to the function
+ *
+ * The function to be passed to json_object_foreach_member(). You
+ * should not add or remove members to and from @object within
+ * this function. It is safe to change the value of @member_node.
+ *
+ * Since: 0.8
+ */
+typedef void (* JsonObjectForeach) (JsonObject  *object,
+                                    const gchar *member_name,
+                                    JsonNode    *member_node,
+                                    gpointer     user_data);
+
+/**
+ * JsonArrayForeach:
+ * @array: the iterated #JsonArray
+ * @index_: the index of the element
+ * @element_node: a #JsonNode containing the value at @index_
+ * @user_data: data passed to the function
+ *
+ * The function to be passed to json_array_foreach_element(). You
+ * should not add or remove elements to and from @array within
+ * this function. It is safe to change the value of @element_node.
+ *
+ * Since: 0.8
+ */
+typedef void (* JsonArrayForeach) (JsonArray  *array,
+                                   guint       index_,
+                                   JsonNode   *element_node,
+                                   gpointer    user_data);
+
+/*
+ * JsonNode
+ */
+
+JSON_AVAILABLE_IN_1_0
+GType                 json_node_get_type        (void) G_GNUC_CONST;
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_new             (JsonNodeType  type);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_alloc           (void);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init            (JsonNode     *node,
+                                                 JsonNodeType  type);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_object     (JsonNode     *node,
+                                                 JsonObject   *object);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_array      (JsonNode     *node,
+                                                 JsonArray    *array);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_int        (JsonNode     *node,
+                                                 gint64        value);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_double     (JsonNode     *node,
+                                                 gdouble       value);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_boolean    (JsonNode     *node,
+                                                 gboolean      value);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_string     (JsonNode     *node,
+                                                 const char   *value);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_init_null       (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_copy            (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_free            (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_2
+JsonNode *            json_node_ref             (JsonNode     *node);
+JSON_AVAILABLE_IN_1_2
+void                  json_node_unref           (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_0
+JsonNodeType          json_node_get_node_type   (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+GType                 json_node_get_value_type  (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_parent      (JsonNode     *node,
+                                                 JsonNode     *parent);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_node_get_parent      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+const gchar *         json_node_type_name       (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_object      (JsonNode     *node,
+                                                 JsonObject   *object);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_take_object     (JsonNode     *node,
+                                                 JsonObject   *object);
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_node_get_object      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_node_dup_object      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_array       (JsonNode     *node,
+                                                 JsonArray    *array);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_take_array      (JsonNode     *node,
+                                                 JsonArray    *array);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_node_get_array       (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_node_dup_array       (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_value       (JsonNode     *node,
+                                                 const GValue *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_get_value       (JsonNode     *node,
+                                                 GValue       *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_string      (JsonNode     *node,
+                                                 const gchar  *value);
+JSON_AVAILABLE_IN_1_0
+const gchar *         json_node_get_string      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+gchar *               json_node_dup_string      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_int         (JsonNode     *node,
+                                                 gint64        value);
+JSON_AVAILABLE_IN_1_0
+gint64                json_node_get_int         (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_double      (JsonNode     *node,
+                                                 gdouble       value);
+JSON_AVAILABLE_IN_1_0
+gdouble               json_node_get_double      (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_node_set_boolean     (JsonNode     *node,
+                                                 gboolean      value);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_node_get_boolean     (JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_node_is_null         (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_2
+void                  json_node_seal            (JsonNode     *node);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_node_is_immutable    (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_2
+guint                 json_string_hash            (gconstpointer  key);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_string_equal           (gconstpointer  a,
+                                                   gconstpointer  b);
+JSON_AVAILABLE_IN_1_2
+gint                  json_string_compare         (gconstpointer  a,
+                                                   gconstpointer  b);
+
+JSON_AVAILABLE_IN_1_2
+guint                 json_node_hash              (gconstpointer  key);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_node_equal             (gconstpointer  a,
+                                                   gconstpointer  b);
+
+/*
+ * JsonObject
+ */
+JSON_AVAILABLE_IN_1_0
+GType                 json_object_get_type           (void) G_GNUC_CONST;
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_object_new                (void);
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_object_ref                (JsonObject  *object);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_unref              (JsonObject  *object);
+
+JSON_DEPRECATED_IN_1_0_FOR(json_object_set_member)
+void                  json_object_add_member         (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      JsonNode    *node);
+
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_member         (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      JsonNode    *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_int_member     (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      gint64       value);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_double_member  (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      gdouble      value);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_boolean_member (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      gboolean     value);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_string_member  (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      const gchar *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_null_member    (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_array_member   (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      JsonArray   *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_set_object_member  (JsonObject  *object,
+                                                      const gchar *member_name,
+                                                      JsonObject  *value);
+JSON_AVAILABLE_IN_1_0
+GList *               json_object_get_members        (JsonObject  *object);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_object_get_member         (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_object_dup_member         (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+gint64                json_object_get_int_member                        (JsonObject  *object,
+                                                                         const gchar *member_name);
+JSON_AVAILABLE_IN_1_6
+gint64                json_object_get_int_member_with_default           (JsonObject  *object,
+                                                                         const char  *member_name,
+                                                                        gint64       default_value);
+JSON_AVAILABLE_IN_1_0
+gdouble               json_object_get_double_member                     (JsonObject  *object,
+                                                                         const gchar *member_name);
+JSON_AVAILABLE_IN_1_6
+double                json_object_get_double_member_with_default        (JsonObject  *object,
+                                                                         const char  *member_name,
+                                                                         double       default_value);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_object_get_boolean_member                    (JsonObject  *object,
+                                                                         const gchar *member_name);
+JSON_AVAILABLE_IN_1_6
+gboolean              json_object_get_boolean_member_with_default       (JsonObject  *object,
+                                                                         const char  *member_name,
+                                                                         gboolean     default_value);
+JSON_AVAILABLE_IN_1_0
+const gchar *         json_object_get_string_member                     (JsonObject  *object,
+                                                                         const gchar *member_name);
+JSON_AVAILABLE_IN_1_6
+const char *          json_object_get_string_member_with_default        (JsonObject  *object,
+                                                                         const char  *member_name,
+                                                                         const char  *default_value);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_object_get_null_member    (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_object_get_array_member   (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_object_get_object_member  (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_object_has_member         (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_remove_member      (JsonObject  *object,
+                                                      const gchar *member_name);
+JSON_AVAILABLE_IN_1_0
+GList *               json_object_get_values         (JsonObject  *object);
+JSON_AVAILABLE_IN_1_0
+guint                 json_object_get_size           (JsonObject  *object);
+JSON_AVAILABLE_IN_1_0
+void                  json_object_foreach_member     (JsonObject  *object,
+                                                      JsonObjectForeach func,
+                                                      gpointer     data);
+
+JSON_AVAILABLE_IN_1_2
+void                  json_object_seal               (JsonObject  *object);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_object_is_immutable       (JsonObject  *object);
+
+JSON_AVAILABLE_IN_1_2
+guint                 json_object_hash               (gconstpointer key);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_object_equal              (gconstpointer a,
+                                                      gconstpointer b);
+
+/**
+ * JsonObjectIter:
+ *
+ * An iterator used to iterate over the members of a #JsonObject. This must
+ * be allocated on the stack and initialised using json_object_iter_init().
+ * The order in which members are returned by the iterator is undefined. The
+ * iterator is invalidated if its #JsonObject is modified during iteration.
+ *
+ * All the fields in the #JsonObjectIter structure are private and should
+ * never be accessed directly.
+ *
+ * Since: 1.2 
+ */
+typedef struct {
+  /*< private >*/
+  gpointer priv_pointer[6];
+  int      priv_int[2];
+  gboolean priv_boolean[1];
+} JsonObjectIter;
+
+JSON_AVAILABLE_IN_1_2
+void                  json_object_iter_init          (JsonObjectIter  *iter,
+                                                      JsonObject      *object);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_object_iter_next          (JsonObjectIter  *iter,
+                                                      const gchar    **member_name,
+                                                      JsonNode       **member_node);
+
+JSON_AVAILABLE_IN_1_0
+GType                 json_array_get_type            (void) G_GNUC_CONST;
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_array_new                 (void);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_array_sized_new           (guint        n_elements);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_array_ref                 (JsonArray   *array);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_unref               (JsonArray   *array);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_element         (JsonArray   *array,
+                                                      JsonNode    *node);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_int_element     (JsonArray   *array,
+                                                      gint64       value);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_double_element  (JsonArray   *array,
+                                                      gdouble      value);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_boolean_element (JsonArray   *array,
+                                                      gboolean     value);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_string_element  (JsonArray   *array,
+                                                      const gchar *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_null_element    (JsonArray   *array);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_array_element   (JsonArray   *array,
+                                                      JsonArray   *value);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_add_object_element  (JsonArray   *array,
+                                                      JsonObject  *value);
+JSON_AVAILABLE_IN_1_0
+GList *               json_array_get_elements        (JsonArray   *array);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_array_get_element         (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+gint64                json_array_get_int_element     (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+gdouble               json_array_get_double_element  (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_array_get_boolean_element (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+const gchar *         json_array_get_string_element  (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+gboolean              json_array_get_null_element    (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+JsonArray *           json_array_get_array_element   (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+JsonObject *          json_array_get_object_element  (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+JsonNode *            json_array_dup_element         (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_remove_element      (JsonArray   *array,
+                                                      guint        index_);
+JSON_AVAILABLE_IN_1_0
+guint                 json_array_get_length          (JsonArray   *array);
+JSON_AVAILABLE_IN_1_0
+void                  json_array_foreach_element     (JsonArray   *array,
+                                                      JsonArrayForeach func,
+                                                      gpointer     data);
+JSON_AVAILABLE_IN_1_2
+void                  json_array_seal                (JsonArray   *array);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_array_is_immutable        (JsonArray   *array);
+
+JSON_AVAILABLE_IN_1_2
+guint                 json_array_hash                (gconstpointer key);
+JSON_AVAILABLE_IN_1_2
+gboolean              json_array_equal               (gconstpointer a,
+                                                      gconstpointer b);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonArray, json_array_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonObject, json_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonNode, json_node_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_TYPES_H__ */
+
+/* json-builder.h: JSON tree builder
+ *
+ * This file is part of JSON-GLib
+ * Copyright (C) 2010  Luca Bruno <lethalman88@gmail.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Luca Bruno  <lethalman88@gmail.com>
+ */
+
+#ifndef __JSON_BUILDER_H__
+#define __JSON_BUILDER_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_BUILDER             (json_builder_get_type ())
+#define JSON_BUILDER(obj)             (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_BUILDER, JsonBuilder))
+#define JSON_IS_BUILDER(obj)          (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_BUILDER))
+#define JSON_BUILDER_CLASS(klass)     (G_TYPE_CHECK_CLASS_CAST ((klass), JSON_TYPE_BUILDER, JsonBuilderClass))
+#define JSON_IS_BUILDER_CLASS(klass)  (G_TYPE_CHECK_CLASS_TYPE ((klass), JSON_TYPE_BUILDER))
+#define JSON_BUILDER_GET_CLASS(obj)   (G_TYPE_INSTANCE_GET_CLASS ((obj), JSON_TYPE_BUILDER, JsonBuilderClass))
+
+typedef struct _JsonBuilder           JsonBuilder;
+typedef struct _JsonBuilderPrivate    JsonBuilderPrivate;
+typedef struct _JsonBuilderClass      JsonBuilderClass;
+
+/**
+ * JsonBuilder:
+ *
+ * The `JsonBuilder` structure contains only private data and should be
+ * accessed using the provided API
+ *
+ * Since: 0.12
+ */
+struct _JsonBuilder
+{
+  /*< private >*/
+  GObject parent_instance;
+
+  JsonBuilderPrivate *priv;
+};
+
+/**
+ * JsonBuilderClass:
+ *
+ * The `JsonBuilderClass` structure contains only private data
+ *
+ * Since: 0.12
+ */
+struct _JsonBuilderClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  /* padding, for future expansion */
+  void (* _json_reserved1) (void);
+  void (* _json_reserved2) (void);
+};
+
+JSON_AVAILABLE_IN_1_0
+GType json_builder_get_type (void) G_GNUC_CONST;
+
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_new                (void);
+JSON_AVAILABLE_IN_1_2
+JsonBuilder *json_builder_new_immutable      (void);
+JSON_AVAILABLE_IN_1_0
+JsonNode    *json_builder_get_root           (JsonBuilder  *builder);
+JSON_AVAILABLE_IN_1_0
+void         json_builder_reset              (JsonBuilder  *builder);
+
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_begin_array        (JsonBuilder  *builder);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_end_array          (JsonBuilder  *builder);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_begin_object       (JsonBuilder  *builder);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_end_object         (JsonBuilder  *builder);
+
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_set_member_name    (JsonBuilder  *builder,
+                                              const gchar  *member_name);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_value          (JsonBuilder  *builder,
+                                              JsonNode     *node);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_int_value      (JsonBuilder  *builder,
+                                              gint64        value);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_double_value   (JsonBuilder  *builder,
+                                              gdouble       value);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_boolean_value  (JsonBuilder  *builder,
+                                              gboolean      value);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_string_value   (JsonBuilder  *builder,
+                                              const gchar  *value);
+JSON_AVAILABLE_IN_1_0
+JsonBuilder *json_builder_add_null_value     (JsonBuilder  *builder);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonBuilder, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_BUILDER_H__ */
+/* json-generator.h - JSON streams generator
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_GENERATOR_H__
+#define __JSON_GENERATOR_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_GENERATOR             (json_generator_get_type ())
+#define JSON_GENERATOR(obj)             (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_GENERATOR, JsonGenerator))
+#define JSON_IS_GENERATOR(obj)          (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_GENERATOR))
+#define JSON_GENERATOR_CLASS(klass)     (G_TYPE_CHECK_CLASS_CAST ((klass), JSON_TYPE_GENERATOR, JsonGeneratorClass))
+#define JSON_IS_GENERATOR_CLASS(klass)  (G_TYPE_CHECK_CLASS_TYPE ((klass), JSON_TYPE_GENERATOR))
+#define JSON_GENERATOR_GET_CLASS(obj)   (G_TYPE_INSTANCE_GET_CLASS ((obj), JSON_TYPE_GENERATOR, JsonGeneratorClass))
+
+typedef struct _JsonGenerator           JsonGenerator;
+typedef struct _JsonGeneratorPrivate    JsonGeneratorPrivate;
+typedef struct _JsonGeneratorClass      JsonGeneratorClass;
+
+/**
+ * JsonGenerator:
+ *
+ * JSON data streams generator. The contents of the #JsonGenerator structure
+ * are private and should only be accessed via the provided API.
+ */
+struct _JsonGenerator
+{
+  /*< private >*/
+  GObject parent_instance;
+
+  JsonGeneratorPrivate *priv;
+};
+
+/**
+ * JsonGeneratorClass:
+ *
+ * #JsonGenerator class
+ */
+struct _JsonGeneratorClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  /* padding, for future expansion */
+  void (* _json_reserved1) (void);
+  void (* _json_reserved2) (void);
+  void (* _json_reserved3) (void);
+  void (* _json_reserved4) (void);
+};
+
+JSON_AVAILABLE_IN_1_0
+GType json_generator_get_type (void) G_GNUC_CONST;
+
+JSON_AVAILABLE_IN_1_0
+JsonGenerator * json_generator_new              (void);
+
+JSON_AVAILABLE_IN_1_0
+void            json_generator_set_pretty       (JsonGenerator  *generator,
+                                                 gboolean        is_pretty);
+JSON_AVAILABLE_IN_1_0
+gboolean        json_generator_get_pretty       (JsonGenerator  *generator);
+JSON_AVAILABLE_IN_1_0
+void            json_generator_set_indent       (JsonGenerator  *generator,
+                                                 guint           indent_level);
+JSON_AVAILABLE_IN_1_0
+guint           json_generator_get_indent       (JsonGenerator  *generator);
+JSON_AVAILABLE_IN_1_0
+void            json_generator_set_indent_char  (JsonGenerator  *generator,
+                                                 gunichar        indent_char);
+JSON_AVAILABLE_IN_1_0
+gunichar        json_generator_get_indent_char  (JsonGenerator  *generator);
+JSON_AVAILABLE_IN_1_0
+void            json_generator_set_root         (JsonGenerator  *generator,
+                                                 JsonNode       *node);
+JSON_AVAILABLE_IN_1_0
+JsonNode *      json_generator_get_root         (JsonGenerator  *generator);
+
+JSON_AVAILABLE_IN_1_4
+GString        *json_generator_to_gstring       (JsonGenerator  *generator,
+                                                 GString        *string);
+
+JSON_AVAILABLE_IN_1_0
+gchar *         json_generator_to_data          (JsonGenerator  *generator,
+                                                 gsize          *length);
+JSON_AVAILABLE_IN_1_0
+gboolean        json_generator_to_file          (JsonGenerator  *generator,
+                                                 const gchar    *filename,
+                                                 GError        **error);
+JSON_AVAILABLE_IN_1_0
+gboolean        json_generator_to_stream        (JsonGenerator  *generator,
+                                                 GOutputStream  *stream,
+                                                 GCancellable   *cancellable,
+                                                 GError        **error);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonGenerator, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_GENERATOR_H__ */
+/* json-parser.h - JSON streams parser
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_PARSER_H__
+#define __JSON_PARSER_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_PARSER                (json_parser_get_type ())
+#define JSON_PARSER(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_PARSER, JsonParser))
+#define JSON_IS_PARSER(obj)             (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_PARSER))
+#define JSON_PARSER_CLASS(klass)        (G_TYPE_CHECK_CLASS_CAST ((klass), JSON_TYPE_PARSER, JsonParserClass))
+#define JSON_IS_PARSER_CLASS(klass)     (G_TYPE_CHECK_CLASS_TYPE ((klass), JSON_TYPE_PARSER))
+#define JSON_PARSER_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), JSON_TYPE_PARSER, JsonParserClass))
+
+#define JSON_PARSER_ERROR               (json_parser_error_quark ())
+
+typedef struct _JsonParser              JsonParser;
+typedef struct _JsonParserPrivate       JsonParserPrivate;
+typedef struct _JsonParserClass         JsonParserClass;
+
+/**
+ * JsonParserError:
+ * @JSON_PARSER_ERROR_PARSE: parse error
+ * @JSON_PARSER_ERROR_TRAILING_COMMA: unexpected trailing comma
+ * @JSON_PARSER_ERROR_MISSING_COMMA: expected comma
+ * @JSON_PARSER_ERROR_MISSING_COLON: expected colon
+ * @JSON_PARSER_ERROR_INVALID_BAREWORD: invalid bareword
+ * @JSON_PARSER_ERROR_EMPTY_MEMBER_NAME: empty member name (Since: 0.16)
+ * @JSON_PARSER_ERROR_INVALID_DATA: invalid data (Since: 0.18)
+ * @JSON_PARSER_ERROR_UNKNOWN: unknown error
+ *
+ * Error enumeration for #JsonParser
+ *
+ * This enumeration can be extended at later date
+ */
+typedef enum {
+  JSON_PARSER_ERROR_PARSE,
+  JSON_PARSER_ERROR_TRAILING_COMMA,
+  JSON_PARSER_ERROR_MISSING_COMMA,
+  JSON_PARSER_ERROR_MISSING_COLON,
+  JSON_PARSER_ERROR_INVALID_BAREWORD,
+  JSON_PARSER_ERROR_EMPTY_MEMBER_NAME,
+  JSON_PARSER_ERROR_INVALID_DATA,
+
+  JSON_PARSER_ERROR_UNKNOWN
+} JsonParserError;
+
+/**
+ * JsonParser:
+ * 
+ * JSON data streams parser. The contents of the #JsonParser structure are
+ * private and should only be accessed via the provided API.
+ */
+struct _JsonParser
+{
+  /*< private >*/
+  GObject parent_instance;
+
+  JsonParserPrivate *priv;
+};
+
+/**
+ * JsonParserClass:
+ * @parse_start: class handler for the JsonParser::parse-start signal
+ * @object_start: class handler for the JsonParser::object-start signal
+ * @object_member: class handler for the JsonParser::object-member signal
+ * @object_end: class handler for the JsonParser::object-end signal
+ * @array_start: class handler for the JsonParser::array-start signal
+ * @array_element: class handler for the JsonParser::array-element signal
+ * @array_end: class handler for the JsonParser::array-end signal
+ * @parse_end: class handler for the JsonParser::parse-end signal
+ * @error: class handler for the JsonParser::error signal
+ *
+ * #JsonParser class.
+ */
+struct _JsonParserClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  /*< public  >*/
+  void (* parse_start)   (JsonParser   *parser);
+
+  void (* object_start)  (JsonParser   *parser);
+  void (* object_member) (JsonParser   *parser,
+                          JsonObject   *object,
+                          const gchar  *member_name);
+  void (* object_end)    (JsonParser   *parser,
+                          JsonObject   *object);
+
+  void (* array_start)   (JsonParser   *parser);
+  void (* array_element) (JsonParser   *parser,
+                          JsonArray    *array,
+                          gint          index_);
+  void (* array_end)     (JsonParser   *parser,
+                          JsonArray    *array);
+
+  void (* parse_end)     (JsonParser   *parser);
+  
+  void (* error)         (JsonParser   *parser,
+                          const GError *error);
+
+  /*< private >*/
+  /* padding for future expansion */
+  void (* _json_reserved1) (void);
+  void (* _json_reserved2) (void);
+  void (* _json_reserved3) (void);
+  void (* _json_reserved4) (void);
+  void (* _json_reserved5) (void);
+  void (* _json_reserved6) (void);
+  void (* _json_reserved7) (void);
+  void (* _json_reserved8) (void);
+};
+
+JSON_AVAILABLE_IN_1_0
+GQuark json_parser_error_quark (void);
+JSON_AVAILABLE_IN_1_0
+GType json_parser_get_type (void) G_GNUC_CONST;
+
+JSON_AVAILABLE_IN_1_0
+JsonParser *json_parser_new                     (void);
+JSON_AVAILABLE_IN_1_2
+JsonParser *json_parser_new_immutable           (void);
+JSON_AVAILABLE_IN_1_0
+gboolean    json_parser_load_from_file          (JsonParser           *parser,
+                                                 const gchar          *filename,
+                                                 GError              **error);
+JSON_AVAILABLE_IN_1_0
+gboolean    json_parser_load_from_data          (JsonParser           *parser,
+                                                 const gchar          *data,
+                                                 gssize                length,
+                                                 GError              **error);
+JSON_AVAILABLE_IN_1_0
+gboolean    json_parser_load_from_stream        (JsonParser           *parser,
+                                                 GInputStream         *stream,
+                                                 GCancellable         *cancellable,
+                                                 GError              **error);
+JSON_AVAILABLE_IN_1_0
+void        json_parser_load_from_stream_async  (JsonParser           *parser,
+                                                 GInputStream         *stream,
+                                                 GCancellable         *cancellable,
+                                                 GAsyncReadyCallback   callback,
+                                                 gpointer              user_data);
+JSON_AVAILABLE_IN_1_0
+gboolean    json_parser_load_from_stream_finish (JsonParser           *parser,
+                                                 GAsyncResult         *result,
+                                                 GError              **error);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *  json_parser_get_root                (JsonParser           *parser);
+JSON_AVAILABLE_IN_1_4
+JsonNode *  json_parser_steal_root              (JsonParser           *parser);
+
+JSON_AVAILABLE_IN_1_0
+guint       json_parser_get_current_line        (JsonParser           *parser);
+JSON_AVAILABLE_IN_1_0
+guint       json_parser_get_current_pos         (JsonParser           *parser);
+JSON_AVAILABLE_IN_1_0
+gboolean    json_parser_has_assignment          (JsonParser           *parser,
+                                                 gchar               **variable_name);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonParser, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_PARSER_H__ */
+/* json-path.h - JSONPath implementation
+ *
+ * This file is part of JSON-GLib
+ * Copyright © 2011  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_PATH_H__
+#define __JSON_PATH_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_PATH          (json_path_get_type ())
+#define JSON_PATH(obj)          (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_PATH, JsonPath))
+#define JSON_IS_PATH(obj)       (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_PATH))
+
+/**
+ * JSON_PATH_ERROR:
+ *
+ * Error domain for #JsonPath errors
+ *
+ * Since: 0.14
+ */
+#define JSON_PATH_ERROR         (json_path_error_quark ())
+
+/**
+ * JsonPathError:
+ * @JSON_PATH_ERROR_INVALID_QUERY: Invalid query
+ *
+ * Error code enumeration for the %JSON_PATH_ERROR domain.
+ *
+ * Since: 0.14
+ */
+typedef enum {
+  JSON_PATH_ERROR_INVALID_QUERY
+} JsonPathError;
+
+/**
+ * JsonPath:
+ *
+ * The `JsonPath` structure is an opaque object whose members cannot be
+ * directly accessed except through the provided API.
+ *
+ * Since: 0.14
+ */
+typedef struct _JsonPath        JsonPath;
+
+/**
+ * JsonPathClass:
+ *
+ * The `JsonPathClass` structure is an opaque object class whose members
+ * cannot be directly accessed.
+ *
+ * Since: 0.14
+ */
+typedef struct _JsonPathClass   JsonPathClass;
+
+JSON_AVAILABLE_IN_1_0
+GType json_path_get_type (void) G_GNUC_CONST;
+JSON_AVAILABLE_IN_1_0
+GQuark json_path_error_quark (void);
+
+JSON_AVAILABLE_IN_1_0
+JsonPath *      json_path_new           (void);
+
+JSON_AVAILABLE_IN_1_0
+gboolean        json_path_compile       (JsonPath    *path,
+                                         const char  *expression,
+                                         GError     **error);
+JSON_AVAILABLE_IN_1_0
+JsonNode *      json_path_match         (JsonPath    *path,
+                                         JsonNode    *root);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *      json_path_query         (const char  *expression,
+                                         JsonNode    *root,
+                                         GError     **error);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonPath, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_PATH_H__ */
+/* json-reader.h - JSON cursor parser
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2010  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_READER_H__
+#define __JSON_READER_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_READER                (json_reader_get_type ())
+#define JSON_READER(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_READER, JsonReader))
+#define JSON_IS_READER(obj)             (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_READER))
+#define JSON_READER_CLASS(klass)        (G_TYPE_CHECK_CLASS_CAST ((klass), JSON_TYPE_READER, JsonReaderClass))
+#define JSON_IS_READER_CLASS(klass)     (G_TYPE_CHECK_CLASS_TYPE ((klass), JSON_TYPE_READER))
+#define JSON_READER_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), JSON_TYPE_READER, JsonReaderClass))
+
+/**
+ * JSON_READER_ERROR:
+ *
+ * Error domain for #JsonReader errors
+ *
+ * Since: 0.12
+ */
+#define JSON_READER_ERROR               (json_reader_error_quark ())
+
+typedef struct _JsonReader              JsonReader;
+typedef struct _JsonReaderPrivate       JsonReaderPrivate;
+typedef struct _JsonReaderClass         JsonReaderClass;
+
+/**
+ * JsonReaderError:
+ * @JSON_READER_ERROR_NO_ARRAY: No array found at the current position
+ * @JSON_READER_ERROR_INVALID_INDEX: Index out of bounds
+ * @JSON_READER_ERROR_NO_OBJECT: No object found at the current position
+ * @JSON_READER_ERROR_INVALID_MEMBER: Member not found
+ * @JSON_READER_ERROR_INVALID_NODE: No valid node found at the current position
+ * @JSON_READER_ERROR_NO_VALUE: The node at the current position does not
+ *   hold a value
+ * @JSON_READER_ERROR_INVALID_TYPE: The node at the current position does not
+ *   hold a value of the desired type
+ *
+ * Error codes enumeration for #JsonReader errors
+ *
+ * Since: 0.12
+ */
+typedef enum {
+  JSON_READER_ERROR_NO_ARRAY,
+  JSON_READER_ERROR_INVALID_INDEX,
+  JSON_READER_ERROR_NO_OBJECT,
+  JSON_READER_ERROR_INVALID_MEMBER,
+  JSON_READER_ERROR_INVALID_NODE,
+  JSON_READER_ERROR_NO_VALUE,
+  JSON_READER_ERROR_INVALID_TYPE
+} JsonReaderError;
+
+/**
+ * JsonReader:
+ *
+ * The `JsonReader` structure contains only private data and should
+ * be accessed using the provided API
+ *
+ * Since: 0.12
+ */
+struct _JsonReader
+{
+  /*< private >*/
+  GObject parent_instance;
+
+  JsonReaderPrivate *priv;
+};
+
+/**
+ * JsonReaderClass:
+ *
+ * The `JsonReaderClass` structure contains only private data
+ *
+ * Since: 0.12
+ */
+struct _JsonReaderClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+
+  void (*_json_padding0) (void);
+  void (*_json_padding1) (void);
+  void (*_json_padding2) (void);
+  void (*_json_padding3) (void);
+  void (*_json_padding4) (void);
+};
+
+JSON_AVAILABLE_IN_1_0
+GQuark json_reader_error_quark (void);
+JSON_AVAILABLE_IN_1_0
+GType json_reader_get_type (void) G_GNUC_CONST;
+
+JSON_AVAILABLE_IN_1_0
+JsonReader *           json_reader_new               (JsonNode     *node);
+
+JSON_AVAILABLE_IN_1_0
+void                   json_reader_set_root          (JsonReader   *reader,
+                                                      JsonNode     *root);
+
+JSON_AVAILABLE_IN_1_0
+const GError *         json_reader_get_error         (JsonReader   *reader);
+
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_is_array          (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_read_element      (JsonReader   *reader,
+                                                      guint         index_);
+JSON_AVAILABLE_IN_1_0
+void                   json_reader_end_element       (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gint                   json_reader_count_elements    (JsonReader   *reader);
+
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_is_object         (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_read_member       (JsonReader   *reader,
+                                                      const gchar  *member_name);
+JSON_AVAILABLE_IN_1_0
+void                   json_reader_end_member        (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gint                   json_reader_count_members     (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gchar **               json_reader_list_members      (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+const gchar *          json_reader_get_member_name   (JsonReader   *reader);
+
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_is_value          (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+JsonNode *             json_reader_get_value         (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gint64                 json_reader_get_int_value     (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gdouble                json_reader_get_double_value  (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+const gchar *          json_reader_get_string_value  (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_get_boolean_value (JsonReader   *reader);
+JSON_AVAILABLE_IN_1_0
+gboolean               json_reader_get_null_value    (JsonReader   *reader);
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonReader, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_READER_H__ */
+/* json-utils.h - JSON utility API
+ * 
+ * This file is part of JSON-GLib
+ * Copyright 2015  Emmanuele Bassi
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __JSON_UTILS_H__
+#define __JSON_UTILS_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+JSON_AVAILABLE_IN_1_2
+JsonNode *      json_from_string        (const char  *str,
+                                         GError     **error);
+JSON_AVAILABLE_IN_1_2
+char *          json_to_string          (JsonNode    *node,
+                                         gboolean     pretty);
+
+G_END_DECLS
+
+#endif /* __JSON_UTILS_H__ */
+
+
+/* This file is generated by glib-mkenums, do not modify it. This code is licensed under the same license as the containing project. Note that it links to GLib, so must comply with the LGPL linking clauses. */
+
+#ifndef __JSON_ENUM_TYPES_H__
+#define __JSON_ENUM_TYPES_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+/* enumerations from "json-parser.h" */
+JSON_AVAILABLE_IN_1_0
+GType json_parser_error_get_type (void) G_GNUC_CONST;
+#define JSON_TYPE_PARSER_ERROR (json_parser_error_get_type())
+/* enumerations from "json-path.h" */
+JSON_AVAILABLE_IN_1_0
+GType json_path_error_get_type (void) G_GNUC_CONST;
+#define JSON_TYPE_PATH_ERROR (json_path_error_get_type())
+/* enumerations from "json-reader.h" */
+JSON_AVAILABLE_IN_1_0
+GType json_reader_error_get_type (void) G_GNUC_CONST;
+#define JSON_TYPE_READER_ERROR (json_reader_error_get_type())
+/* enumerations from "json-types.h" */
+JSON_AVAILABLE_IN_1_0
+GType json_node_type_get_type (void) G_GNUC_CONST;
+#define JSON_TYPE_NODE_TYPE (json_node_type_get_type())
+G_END_DECLS
+
+#endif /* !__JSON_ENUM_TYPES_H__ */
+
+/* Generated data ends here */
+
+
+/* json-gobject.h - JSON GObject integration
+ * 
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Emmanuele Bassi  <ebassi@linux.intel.com>
+ */
+
+#ifndef __JSON_GOBJECT_H__
+#define __JSON_GOBJECT_H__
+
+
+G_BEGIN_DECLS
+
+#define JSON_TYPE_SERIALIZABLE                  (json_serializable_get_type ())
+#define JSON_SERIALIZABLE(obj)                  (G_TYPE_CHECK_INSTANCE_CAST ((obj), JSON_TYPE_SERIALIZABLE, JsonSerializable))
+#define JSON_IS_SERIALIZABLE(obj)               (G_TYPE_CHECK_INSTANCE_TYPE ((obj), JSON_TYPE_SERIALIZABLE))
+#define JSON_SERIALIZABLE_GET_IFACE(obj)        (G_TYPE_INSTANCE_GET_INTERFACE ((obj), JSON_TYPE_SERIALIZABLE, JsonSerializableIface))
+
+typedef struct _JsonSerializable        JsonSerializable; /* dummy */
+typedef struct _JsonSerializableIface   JsonSerializableIface;
+
+/**
+ * JsonSerializableIface:
+ * @serialize_property: virtual function for serializing a #GObject property
+ *   into a #JsonNode
+ * @deserialize_property: virtual function for deserializing a #JsonNode
+ *   into a #GObject property
+ * @find_property: virtual function for finding a property definition using
+ *   its name
+ * @list_properties: virtual function for listing the installed property
+ *   definitions
+ * @set_property: virtual function for setting a property
+ * @get_property: virtual function for getting a property
+ *
+ * Interface that allows serializing and deserializing #GObject instances
+ * with properties storing complex data types. The json_serialize_gobject()
+ * function will check if the passed #GObject implements this interface,
+ * so it can also be used to override the default property serialization
+ * sequence.
+ */
+struct _JsonSerializableIface
+{
+  /*< private >*/
+  GTypeInterface g_iface;
+
+  /*< public >*/
+  JsonNode *(* serialize_property)   (JsonSerializable *serializable,
+                                      const gchar      *property_name,
+                                      const GValue     *value,
+                                      GParamSpec       *pspec);
+  gboolean  (* deserialize_property) (JsonSerializable *serializable,
+                                      const gchar      *property_name,
+                                      GValue           *value,
+                                      GParamSpec       *pspec,
+                                      JsonNode         *property_node);
+
+  GParamSpec * (* find_property)       (JsonSerializable *serializable,
+                                        const char       *name);
+  GParamSpec **(* list_properties)     (JsonSerializable *serializable,
+                                        guint            *n_pspecs);
+  void         (* set_property)        (JsonSerializable *serializable,
+                                        GParamSpec       *pspec,
+                                        const GValue     *value);
+  void         (* get_property)        (JsonSerializable *serializable,
+                                        GParamSpec       *pspec,
+                                        GValue           *value);
+};
+
+JSON_AVAILABLE_IN_1_0
+GType json_serializable_get_type (void) G_GNUC_CONST;
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *json_serializable_serialize_property           (JsonSerializable *serializable,
+                                                          const gchar      *property_name,
+                                                          const GValue     *value,
+                                                          GParamSpec       *pspec);
+JSON_AVAILABLE_IN_1_0
+gboolean  json_serializable_deserialize_property         (JsonSerializable *serializable,
+                                                          const gchar      *property_name,
+                                                          GValue           *value,
+                                                          GParamSpec       *pspec,
+                                                          JsonNode         *property_node);
+
+JSON_AVAILABLE_IN_1_0
+GParamSpec *    json_serializable_find_property         (JsonSerializable *serializable,
+                                                         const char       *name);
+JSON_AVAILABLE_IN_1_0
+GParamSpec **   json_serializable_list_properties       (JsonSerializable *serializable,
+                                                         guint            *n_pspecs);
+JSON_AVAILABLE_IN_1_0
+void            json_serializable_set_property          (JsonSerializable *serializable,
+                                                         GParamSpec       *pspec,
+                                                         const GValue     *value);
+JSON_AVAILABLE_IN_1_0
+void            json_serializable_get_property          (JsonSerializable *serializable,
+                                                         GParamSpec       *pspec,
+                                                         GValue           *value);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *json_serializable_default_serialize_property   (JsonSerializable *serializable,
+                                                          const gchar      *property_name,
+                                                          const GValue     *value,
+                                                          GParamSpec       *pspec);
+JSON_AVAILABLE_IN_1_0
+gboolean  json_serializable_default_deserialize_property (JsonSerializable *serializable,
+                                                          const gchar      *property_name,
+                                                          GValue           *value,
+                                                          GParamSpec       *pspec,
+                                                          JsonNode         *property_node);
+
+/**
+ * JsonBoxedSerializeFunc:
+ * @boxed: a #GBoxed
+ *
+ * Serializes the passed #GBoxed and stores it inside a #JsonNode
+ *
+ * Return value: the newly created #JsonNode
+ *
+ * Since: 0.10
+ */
+typedef JsonNode *(* JsonBoxedSerializeFunc) (gconstpointer boxed);
+
+/**
+ * JsonBoxedDeserializeFunc:
+ * @node: a #JsonNode
+ *
+ * Deserializes the contents of the passed #JsonNode into a #GBoxed
+ *
+ * Return value: the newly created boxed type
+ *
+ * Since: 0.10
+ */
+typedef gpointer (* JsonBoxedDeserializeFunc) (JsonNode *node);
+
+JSON_AVAILABLE_IN_1_0
+void      json_boxed_register_serialize_func   (GType                    gboxed_type,
+                                                JsonNodeType             node_type,
+                                                JsonBoxedSerializeFunc   serialize_func);
+JSON_AVAILABLE_IN_1_0
+void      json_boxed_register_deserialize_func (GType                    gboxed_type,
+                                                JsonNodeType             node_type,
+                                                JsonBoxedDeserializeFunc deserialize_func);
+JSON_AVAILABLE_IN_1_0
+gboolean  json_boxed_can_serialize             (GType                    gboxed_type,
+                                                JsonNodeType            *node_type);
+JSON_AVAILABLE_IN_1_0
+gboolean  json_boxed_can_deserialize           (GType                    gboxed_type,
+                                                JsonNodeType             node_type);
+JSON_AVAILABLE_IN_1_0
+JsonNode *json_boxed_serialize                 (GType                    gboxed_type,
+                                                gconstpointer            boxed);
+JSON_AVAILABLE_IN_1_0
+gpointer  json_boxed_deserialize               (GType                    gboxed_type,
+                                                JsonNode                *node);
+
+JSON_AVAILABLE_IN_1_0
+JsonNode *json_gobject_serialize               (GObject                 *gobject);
+JSON_AVAILABLE_IN_1_0
+GObject * json_gobject_deserialize             (GType                    gtype,
+                                                JsonNode                *node);
+
+JSON_AVAILABLE_IN_1_0
+GObject * json_gobject_from_data               (GType                    gtype,
+                                                const gchar             *data,
+                                                gssize                   length,
+                                                GError                 **error);
+JSON_AVAILABLE_IN_1_0
+gchar *   json_gobject_to_data                 (GObject                 *gobject,
+                                                gsize                   *length);
+
+JSON_DEPRECATED_IN_1_0_FOR(json_gobject_from_data)
+GObject * json_construct_gobject               (GType                    gtype,
+                                                const gchar             *data,
+                                                gsize                    length,
+                                                GError                 **error);
+JSON_DEPRECATED_IN_1_0_FOR(json_gobject_to_data)
+gchar *   json_serialize_gobject               (GObject                 *gobject,
+                                                gsize                   *length) G_GNUC_MALLOC;
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonSerializable, g_object_unref)
+#endif
+
+G_END_DECLS
+
+#endif /* __JSON_GOBJECT_H__ */
+
+/* json-gvariant.h - JSON GVariant integration
+ *
+ * This file is part of JSON-GLib
+ * Copyright (C) 2007  OpenedHand Ltd.
+ * Copyright (C) 2009  Intel Corp.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Author:
+ *   Eduardo Lima Mitev  <elima@igalia.com>
+ */
+
+#ifndef __JSON_GVARIANT_H__
+#define __JSON_GVARIANT_H__
+
+#if !defined(__JSON_GLIB_INSIDE__) && !defined(JSON_COMPILATION)
+#error "Only <json-glib/json-glib.h> can be included directly."
+#endif
+
+
+G_BEGIN_DECLS
+
+JSON_AVAILABLE_IN_1_0
+JsonNode * json_gvariant_serialize        (GVariant *variant);
+JSON_AVAILABLE_IN_1_0
+gchar *    json_gvariant_serialize_data   (GVariant *variant,
+                                           gsize    *length);
+
+JSON_AVAILABLE_IN_1_0
+GVariant * json_gvariant_deserialize      (JsonNode     *json_node,
+                                           const gchar  *signature,
+                                           GError      **error);
+JSON_AVAILABLE_IN_1_0
+GVariant * json_gvariant_deserialize_data (const gchar  *json,
+                                           gssize        length,
+                                           const gchar  *signature,
+                                           GError      **error);
+
+G_END_DECLS
+
+#endif /* __JSON_GVARIANT_H__ */
+
+#undef __JSON_GLIB_INSIDE__
+
+#endif /* __JSON_GLIB_H__ */
+
+G_BEGIN_DECLS
+
+typedef struct _FridaDeviceManager FridaDeviceManager;
+typedef struct _FridaDeviceList FridaDeviceList;
+typedef struct _FridaDevice FridaDevice;
+typedef struct _FridaApplicationList FridaApplicationList;
+typedef struct _FridaApplication FridaApplication;
+typedef struct _FridaProcessList FridaProcessList;
+typedef struct _FridaProcess FridaProcess;
+typedef struct _FridaSpawnOptions FridaSpawnOptions;
+typedef struct _FridaSpawnList FridaSpawnList;
+typedef struct _FridaSpawn FridaSpawn;
+typedef struct _FridaChildList FridaChildList;
+typedef struct _FridaChild FridaChild;
+typedef struct _FridaCrash FridaCrash;
+typedef struct _FridaIcon FridaIcon;
+typedef struct _FridaSession FridaSession;
+typedef struct _FridaScript FridaScript;
+typedef struct _FridaInjector FridaInjector;
+typedef struct _FridaFileMonitor FridaFileMonitor;
+
+typedef enum {
+  FRIDA_DEVICE_TYPE_LOCAL,
+  FRIDA_DEVICE_TYPE_REMOTE,
+  FRIDA_DEVICE_TYPE_USB
+} FridaDeviceType;
+
+typedef enum {
+  FRIDA_CHILD_ORIGIN_FORK,
+  FRIDA_CHILD_ORIGIN_EXEC,
+  FRIDA_CHILD_ORIGIN_SPAWN
+} FridaChildOrigin;
+
+typedef enum {
+  FRIDA_SESSION_DETACH_REASON_APPLICATION_REQUESTED = 1,
+  FRIDA_SESSION_DETACH_REASON_PROCESS_REPLACED,
+  FRIDA_SESSION_DETACH_REASON_PROCESS_TERMINATED,
+  FRIDA_SESSION_DETACH_REASON_SERVER_TERMINATED,
+  FRIDA_SESSION_DETACH_REASON_DEVICE_LOST
+} FridaSessionDetachReason;
+
+typedef enum {
+  FRIDA_STDIO_INHERIT,
+  FRIDA_STDIO_PIPE
+} FridaStdio;
+
+typedef enum {
+  FRIDA_UNLOAD_POLICY_IMMEDIATE,
+  FRIDA_UNLOAD_POLICY_RESIDENT,
+  FRIDA_UNLOAD_POLICY_DEFERRED
+} FridaUnloadPolicy;
+
+/* Library lifetime */
+void frida_init (void);
+void frida_shutdown (void);
+void frida_deinit (void);
+GMainContext * frida_get_main_context (void);
+
+/* Object lifetime */
+void frida_unref (gpointer obj);
+
+/* Library versioning */
+void frida_version (guint * major, guint * minor, guint * micro, guint * nano);
+const gchar * frida_version_string (void);
+
+/* DeviceManager */
+typedef gboolean (* FridaDeviceManagerPredicate) (FridaDevice * device, gpointer user_data);
+
+FridaDeviceManager * frida_device_manager_new (void);
+
+void frida_device_manager_close (FridaDeviceManager * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_manager_close_finish (FridaDeviceManager * self, GAsyncResult * result);
+void frida_device_manager_close_sync (FridaDeviceManager * self);
+void frida_device_manager_get_device_by_id (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_get_device_by_id_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_get_device_by_id_sync (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_get_device_by_type (FridaDeviceManager * self, FridaDeviceType type, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_get_device_by_type_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_get_device_by_type_sync (FridaDeviceManager * self, FridaDeviceType type, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_get_device (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_get_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_get_device_sync (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_find_device_by_id (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_find_device_by_id_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_find_device_by_id_sync (FridaDeviceManager * self, const gchar * id, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_find_device_by_type (FridaDeviceManager * self, FridaDeviceType type, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_find_device_by_type_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_find_device_by_type_sync (FridaDeviceManager * self, FridaDeviceType type, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_find_device (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_find_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_find_device_sync (FridaDeviceManager * self, FridaDeviceManagerPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_manager_enumerate_devices (FridaDeviceManager * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaDeviceList * frida_device_manager_enumerate_devices_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDeviceList * frida_device_manager_enumerate_devices_sync (FridaDeviceManager * self, GError ** error);
+void frida_device_manager_add_remote_device (FridaDeviceManager * self, const gchar * host, GAsyncReadyCallback callback, gpointer user_data);
+FridaDevice * frida_device_manager_add_remote_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+FridaDevice * frida_device_manager_add_remote_device_sync (FridaDeviceManager * self, const gchar * host, GError ** error);
+void frida_device_manager_remove_remote_device (FridaDeviceManager * self, const gchar * host, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_manager_remove_remote_device_finish (FridaDeviceManager * self, GAsyncResult * result, GError ** error);
+void frida_device_manager_remove_remote_device_sync (FridaDeviceManager * self, const gchar * host, GError ** error);
+
+/* DeviceList */
+gint frida_device_list_size (FridaDeviceList * self);
+FridaDevice * frida_device_list_get (FridaDeviceList * self, gint index);
+
+/* Device */
+typedef gboolean (* FridaDeviceProcessPredicate) (FridaProcess * process, gpointer user_data);
+
+const gchar * frida_device_get_id (FridaDevice * self);
+const gchar * frida_device_get_name (FridaDevice * self);
+FridaIcon * frida_device_get_icon (FridaDevice * self);
+FridaDeviceType frida_device_get_dtype (FridaDevice * self);
+FridaDeviceManager * frida_device_get_manager (FridaDevice * self);
+
+gboolean frida_device_is_lost (FridaDevice * self);
+void frida_device_get_frontmost_application (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaApplication * frida_device_get_frontmost_application_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaApplication * frida_device_get_frontmost_application_sync (FridaDevice * self, GError ** error);
+void frida_device_enumerate_applications (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaApplicationList * frida_device_enumerate_applications_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaApplicationList * frida_device_enumerate_applications_sync (FridaDevice * self, GError ** error);
+void frida_device_get_process_by_pid (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_get_process_by_pid_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_get_process_by_pid_sync (FridaDevice * self, guint pid, GError ** error);
+void frida_device_get_process_by_name (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_get_process_by_name_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_get_process_by_name_sync (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_get_process (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_get_process_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_get_process_sync (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_find_process_by_pid (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_find_process_by_pid_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_find_process_by_pid_sync (FridaDevice * self, guint pid, GError ** error);
+void frida_device_find_process_by_name (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_find_process_by_name_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_find_process_by_name_sync (FridaDevice * self, const gchar * name, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_find_process (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcess * frida_device_find_process_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcess * frida_device_find_process_sync (FridaDevice * self, FridaDeviceProcessPredicate predicate, gpointer predicate_target, gint timeout, GCancellable * cancellable, GError ** error);
+void frida_device_enumerate_processes (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaProcessList * frida_device_enumerate_processes_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaProcessList * frida_device_enumerate_processes_sync (FridaDevice * self, GError ** error);
+void frida_device_enable_spawn_gating (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_enable_spawn_gating_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+void frida_device_enable_spawn_gating_sync (FridaDevice * self, GError ** error);
+void frida_device_disable_spawn_gating (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_disable_spawn_gating_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+void frida_device_disable_spawn_gating_sync (FridaDevice * self, GError ** error);
+void frida_device_enumerate_pending_spawn (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaSpawnList * frida_device_enumerate_pending_spawn_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaSpawnList * frida_device_enumerate_pending_spawn_sync (FridaDevice * self, GError ** error);
+void frida_device_enumerate_pending_children (FridaDevice * self, GAsyncReadyCallback callback, gpointer user_data);
+FridaChildList * frida_device_enumerate_pending_children_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaChildList * frida_device_enumerate_pending_children_sync (FridaDevice * self, GError ** error);
+void frida_device_spawn (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_device_spawn_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+guint frida_device_spawn_sync (FridaDevice * self, const gchar * program, FridaSpawnOptions * options, GError ** error);
+void frida_device_input (FridaDevice * self, guint pid, GBytes * data, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_input_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+void frida_device_input_sync (FridaDevice * self, guint pid, GBytes * data, GError ** error);
+void frida_device_resume (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_resume_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+void frida_device_resume_sync (FridaDevice * self, guint pid, GError ** error);
+void frida_device_kill (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+void frida_device_kill_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+void frida_device_kill_sync (FridaDevice * self, guint pid, GError ** error);
+void frida_device_attach (FridaDevice * self, guint pid, GAsyncReadyCallback callback, gpointer user_data);
+FridaSession * frida_device_attach_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+FridaSession * frida_device_attach_sync (FridaDevice * self, guint pid, GError ** error);
+void frida_device_inject_library_file (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_device_inject_library_file_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+guint frida_device_inject_library_file_sync (FridaDevice * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GError ** error);
+void frida_device_inject_library_blob (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_device_inject_library_blob_finish (FridaDevice * self, GAsyncResult * result, GError ** error);
+guint frida_device_inject_library_blob_sync (FridaDevice * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GError ** error);
+
+/* ApplicationList */
+gint frida_application_list_size (FridaApplicationList * self);
+FridaApplication * frida_application_list_get (FridaApplicationList * self, gint index);
+
+/* Application */
+const gchar * frida_application_get_identifier (FridaApplication * self);
+const gchar * frida_application_get_name (FridaApplication * self);
+guint frida_application_get_pid (FridaApplication * self);
+FridaIcon * frida_application_get_small_icon (FridaApplication * self);
+FridaIcon * frida_application_get_large_icon (FridaApplication * self);
+
+/* ProcessList */
+gint frida_process_list_size (FridaProcessList * self);
+FridaProcess * frida_process_list_get (FridaProcessList * self, gint index);
+
+/* Process */
+guint frida_process_get_pid (FridaProcess * self);
+const gchar * frida_process_get_name (FridaProcess * self);
+FridaIcon * frida_process_get_small_icon (FridaProcess * self);
+FridaIcon * frida_process_get_large_icon (FridaProcess * self);
+
+/* SpawnOptions */
+FridaSpawnOptions * frida_spawn_options_new (void);
+
+gchar ** frida_spawn_options_get_argv (FridaSpawnOptions * self, gint * result_length);
+gchar ** frida_spawn_options_get_envp (FridaSpawnOptions * self, gint * result_length);
+gchar ** frida_spawn_options_get_env (FridaSpawnOptions * self, gint * result_length);
+const gchar * frida_spawn_options_get_cwd (FridaSpawnOptions * self);
+FridaStdio frida_spawn_options_get_stdio (FridaSpawnOptions * self);
+GVariantDict * frida_spawn_options_get_aux (FridaSpawnOptions * self);
+
+void frida_spawn_options_set_argv (FridaSpawnOptions * self, gchar ** value, gint value_length);
+void frida_spawn_options_set_envp (FridaSpawnOptions * self, gchar ** value, gint value_length);
+void frida_spawn_options_set_env (FridaSpawnOptions * self, gchar ** value, gint value_length);
+void frida_spawn_options_set_cwd (FridaSpawnOptions * self, const gchar * value);
+void frida_spawn_options_set_stdio (FridaSpawnOptions * self, FridaStdio value);
+
+/* SpawnList */
+gint frida_spawn_list_size (FridaSpawnList * self);
+FridaSpawn * frida_spawn_list_get (FridaSpawnList * self, gint index);
+
+/* Spawn */
+guint frida_spawn_get_pid (FridaSpawn * self);
+const gchar * frida_spawn_get_identifier (FridaSpawn * self);
+
+/* ChildList */
+gint frida_child_list_size (FridaChildList * self);
+FridaChild * frida_child_list_get (FridaChildList * self, gint index);
+
+/* Child */
+guint frida_child_get_pid (FridaChild * self);
+guint frida_child_get_parent_pid (FridaChild * self);
+FridaChildOrigin frida_child_get_origin (FridaChild * self);
+const gchar * frida_child_get_identifier (FridaChild * self);
+const gchar * frida_child_get_path (FridaChild * self);
+gchar ** frida_child_get_argv (FridaChild * self, gint * result_length);
+gchar ** frida_child_get_envp (FridaChild * self, gint * result_length);
+
+/* Crash */
+guint frida_crash_get_pid (FridaCrash * self);
+const gchar * frida_crash_get_process_name (FridaCrash * self);
+const gchar * frida_crash_get_summary (FridaCrash * self);
+const gchar * frida_crash_get_report (FridaCrash * self);
+
+GVariantDict * frida_crash_load_parameters (FridaCrash * self);
+
+/* Icon */
+gint frida_icon_get_width (FridaIcon * self);
+gint frida_icon_get_height (FridaIcon * self);
+gint frida_icon_get_rowstride (FridaIcon * self);
+GBytes * frida_icon_get_pixels (FridaIcon * self);
+
+/* Session */
+guint frida_session_get_pid (FridaSession * self);
+FridaDevice * frida_session_get_device (FridaSession * self);
+
+gboolean frida_session_is_detached (FridaSession * self);
+void frida_session_detach (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_detach_finish (FridaSession * self, GAsyncResult * result);
+void frida_session_detach_sync (FridaSession * self);
+void frida_session_enable_child_gating (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_enable_child_gating_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_enable_child_gating_sync (FridaSession * self, GError ** error);
+void frida_session_disable_child_gating (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_disable_child_gating_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_disable_child_gating_sync (FridaSession * self, GError ** error);
+void frida_session_create_script (FridaSession * self, const gchar * name, const gchar * source, GAsyncReadyCallback callback, gpointer user_data);
+FridaScript * frida_session_create_script_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+FridaScript * frida_session_create_script_sync (FridaSession * self, const gchar * name, const gchar * source, GError ** error);
+void frida_session_create_script_from_bytes (FridaSession * self, GBytes * bytes, GAsyncReadyCallback callback, gpointer user_data);
+FridaScript * frida_session_create_script_from_bytes_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+FridaScript * frida_session_create_script_from_bytes_sync (FridaSession * self, GBytes * bytes, GError ** error);
+void frida_session_compile_script (FridaSession * self, const gchar * name, const gchar * source, GAsyncReadyCallback callback, gpointer user_data);
+GBytes * frida_session_compile_script_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+GBytes * frida_session_compile_script_sync (FridaSession * self, const gchar * name, const gchar * source, GError ** error);
+void frida_session_enable_debugger (FridaSession * self, guint16 port, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_enable_debugger_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_enable_debugger_sync (FridaSession * self, guint16 port, GError ** error);
+void frida_session_disable_debugger (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_disable_debugger_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_disable_debugger_sync (FridaSession * self, GError ** error);
+void frida_session_enable_jit (FridaSession * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_session_enable_jit_finish (FridaSession * self, GAsyncResult * result, GError ** error);
+void frida_session_enable_jit_sync (FridaSession * self, GError ** error);
+
+/* Script */
+guint frida_script_get_id (FridaScript * self);
+
+gboolean frida_script_is_destroyed (FridaScript * self);
+void frida_script_load (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_load_finish (FridaScript * self, GAsyncResult * result, GError ** error);
+void frida_script_load_sync (FridaScript * self, GError ** error);
+void frida_script_unload (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_unload_finish (FridaScript * self, GAsyncResult * result, GError ** error);
+void frida_script_unload_sync (FridaScript * self, GError ** error);
+void frida_script_eternalize (FridaScript * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_eternalize_finish (FridaScript * self, GAsyncResult * result, GError ** error);
+void frida_script_eternalize_sync (FridaScript * self, GError ** error);
+void frida_script_post (FridaScript * self, const gchar * message, GBytes * data, GAsyncReadyCallback callback, gpointer user_data);
+void frida_script_post_finish (FridaScript * self, GAsyncResult * result, GError ** error);
+void frida_script_post_sync (FridaScript * self, const gchar * message, GBytes * data, GError ** error);
+
+/* Injector */
+FridaInjector * frida_injector_new (void);
+
+FridaInjector * frida_injector_new_inprocess (void);
+void frida_injector_close (FridaInjector * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_injector_close_finish (FridaInjector * self, GAsyncResult * result);
+void frida_injector_close_sync (FridaInjector * self);
+void frida_injector_inject_library_file (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_inject_library_file_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
+guint frida_injector_inject_library_file_sync (FridaInjector * self, guint pid, const gchar * path, const gchar * entrypoint, const gchar * data, GError ** error);
+void frida_injector_inject_library_blob (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_inject_library_blob_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
+guint frida_injector_inject_library_blob_sync (FridaInjector * self, guint pid, GBytes * blob, const gchar * entrypoint, const gchar * data, GError ** error);
+void frida_injector_demonitor_and_clone_state (FridaInjector * self, guint id, GAsyncReadyCallback callback, gpointer user_data);
+guint frida_injector_demonitor_and_clone_state_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
+guint frida_injector_demonitor_and_clone_state_sync (FridaInjector * self, guint id, GError ** error);
+void frida_injector_recreate_thread (FridaInjector * self, guint pid, guint id, GAsyncReadyCallback callback, gpointer user_data);
+void frida_injector_recreate_thread_finish (FridaInjector * self, GAsyncResult * result, GError ** error);
+void frida_injector_recreate_thread_sync (FridaInjector * self, guint pid, guint id, GError ** error);
+
+/* FileMonitor */
+FridaFileMonitor * frida_file_monitor_new (const gchar * path);
+
+const gchar * frida_file_monitor_get_path (FridaFileMonitor * self);
+
+void frida_file_monitor_enable (FridaFileMonitor * self, GCancellable * cancellable, GAsyncReadyCallback callback, gpointer user_data);
+void frida_file_monitor_enable_finish (FridaFileMonitor * self, GAsyncResult * result, GError ** error);
+void frida_file_monitor_enable_sync (FridaFileMonitor * self, GCancellable * cancellable, GError ** error);
+void frida_file_monitor_disable (FridaFileMonitor * self, GAsyncReadyCallback callback, gpointer user_data);
+void frida_file_monitor_disable_finish (FridaFileMonitor * self, GAsyncResult * result, GError ** error);
+void frida_file_monitor_disable_sync (FridaFileMonitor * self, GError ** error);
+
+/* Errors */
+GQuark frida_error_quark (void);
+
+typedef enum {
+  FRIDA_ERROR_SERVER_NOT_RUNNING,
+  FRIDA_ERROR_EXECUTABLE_NOT_FOUND,
+  FRIDA_ERROR_EXECUTABLE_NOT_SUPPORTED,
+  FRIDA_ERROR_PROCESS_NOT_FOUND,
+  FRIDA_ERROR_PROCESS_NOT_RESPONDING,
+  FRIDA_ERROR_INVALID_ARGUMENT,
+  FRIDA_ERROR_INVALID_OPERATION,
+  FRIDA_ERROR_PERMISSION_DENIED,
+  FRIDA_ERROR_ADDRESS_IN_USE,
+  FRIDA_ERROR_TIMED_OUT,
+  FRIDA_ERROR_NOT_SUPPORTED,
+  FRIDA_ERROR_PROTOCOL,
+  FRIDA_ERROR_TRANSPORT
+} FridaError;
+
+/* GTypes */
+GType frida_device_type_get_type (void) G_GNUC_CONST;
+GType frida_child_origin_get_type (void) G_GNUC_CONST;
+GType frida_session_detach_reason_get_type (void) G_GNUC_CONST;
+GType frida_stdio_get_type (void) G_GNUC_CONST;
+GType frida_unload_policy_get_type (void) G_GNUC_CONST;
+GType frida_device_manager_get_type (void) G_GNUC_CONST;
+GType frida_device_list_get_type (void) G_GNUC_CONST;
+GType frida_device_get_type (void) G_GNUC_CONST;
+GType frida_application_list_get_type (void) G_GNUC_CONST;
+GType frida_application_get_type (void) G_GNUC_CONST;
+GType frida_process_list_get_type (void) G_GNUC_CONST;
+GType frida_process_get_type (void) G_GNUC_CONST;
+GType frida_spawn_options_get_type (void) G_GNUC_CONST;
+GType frida_spawn_list_get_type (void) G_GNUC_CONST;
+GType frida_spawn_get_type (void) G_GNUC_CONST;
+GType frida_child_list_get_type (void) G_GNUC_CONST;
+GType frida_child_get_type (void) G_GNUC_CONST;
+GType frida_crash_get_type (void) G_GNUC_CONST;
+GType frida_icon_get_type (void) G_GNUC_CONST;
+GType frida_session_get_type (void) G_GNUC_CONST;
+GType frida_script_get_type (void) G_GNUC_CONST;
+GType frida_injector_get_type (void) G_GNUC_CONST;
+GType frida_file_monitor_get_type (void) G_GNUC_CONST;
+
+/* Macros */
+#define FRIDA_TYPE_DEVICE_TYPE (frida_device_type_get_type ())
+
+#define FRIDA_TYPE_CHILD_ORIGIN (frida_child_origin_get_type ())
+
+#define FRIDA_TYPE_SESSION_DETACH_REASON (frida_session_detach_reason_get_type ())
+
+#define FRIDA_TYPE_STDIO (frida_stdio_get_type ())
+
+#define FRIDA_TYPE_UNLOAD_POLICY (frida_unload_policy_get_type ())
+
+#define FRIDA_TYPE_DEVICE_MANAGER (frida_device_manager_get_type ())
+#define FRIDA_DEVICE_MANAGER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_DEVICE_MANAGER, FridaDeviceManager))
+#define FRIDA_IS_DEVICE_MANAGER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_DEVICE_MANAGER))
+
+#define FRIDA_TYPE_DEVICE_LIST (frida_device_list_get_type ())
+#define FRIDA_DEVICE_LIST(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_DEVICE_LIST, FridaDeviceList))
+#define FRIDA_IS_DEVICE_LIST(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_DEVICE_LIST))
+
+#define FRIDA_TYPE_DEVICE (frida_device_get_type ())
+#define FRIDA_DEVICE(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_DEVICE, FridaDevice))
+#define FRIDA_IS_DEVICE(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_DEVICE))
+
+#define FRIDA_TYPE_APPLICATION_LIST (frida_application_list_get_type ())
+#define FRIDA_APPLICATION_LIST(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_APPLICATION_LIST, FridaApplicationList))
+#define FRIDA_IS_APPLICATION_LIST(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_APPLICATION_LIST))
+
+#define FRIDA_TYPE_APPLICATION (frida_application_get_type ())
+#define FRIDA_APPLICATION(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_APPLICATION, FridaApplication))
+#define FRIDA_IS_APPLICATION(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_APPLICATION))
+
+#define FRIDA_TYPE_PROCESS_LIST (frida_process_list_get_type ())
+#define FRIDA_PROCESS_LIST(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_PROCESS_LIST, FridaProcessList))
+#define FRIDA_IS_PROCESS_LIST(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_PROCESS_LIST))
+
+#define FRIDA_TYPE_PROCESS (frida_process_get_type ())
+#define FRIDA_PROCESS(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_PROCESS, FridaProcess))
+#define FRIDA_IS_PROCESS(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_PROCESS))
+
+#define FRIDA_TYPE_SPAWN_OPTIONS (frida_spawn_options_get_type ())
+#define FRIDA_SPAWN_OPTIONS(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SPAWN_OPTIONS, FridaSpawnOptions))
+#define FRIDA_IS_SPAWN_OPTIONS(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SPAWN_OPTIONS))
+
+#define FRIDA_TYPE_SPAWN_LIST (frida_spawn_list_get_type ())
+#define FRIDA_SPAWN_LIST(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SPAWN_LIST, FridaSpawnList))
+#define FRIDA_IS_SPAWN_LIST(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SPAWN_LIST))
+
+#define FRIDA_TYPE_SPAWN (frida_spawn_get_type ())
+#define FRIDA_SPAWN(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SPAWN, FridaSpawn))
+#define FRIDA_IS_SPAWN(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SPAWN))
+
+#define FRIDA_TYPE_CHILD_LIST (frida_child_list_get_type ())
+#define FRIDA_CHILD_LIST(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_CHILD_LIST, FridaChildList))
+#define FRIDA_IS_CHILD_LIST(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_CHILD_LIST))
+
+#define FRIDA_TYPE_CHILD (frida_child_get_type ())
+#define FRIDA_CHILD(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_CHILD, FridaChild))
+#define FRIDA_IS_CHILD(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_CHILD))
+
+#define FRIDA_TYPE_CRASH (frida_crash_get_type ())
+#define FRIDA_CRASH(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_CRASH, FridaCrash))
+#define FRIDA_IS_CRASH(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_CRASH))
+
+#define FRIDA_TYPE_ICON (frida_icon_get_type ())
+#define FRIDA_ICON(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_ICON, FridaIcon))
+#define FRIDA_IS_ICON(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_ICON))
+
+#define FRIDA_TYPE_SESSION (frida_session_get_type ())
+#define FRIDA_SESSION(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SESSION, FridaSession))
+#define FRIDA_IS_SESSION(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SESSION))
+
+#define FRIDA_TYPE_SCRIPT (frida_script_get_type ())
+#define FRIDA_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_SCRIPT, FridaScript))
+#define FRIDA_IS_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_SCRIPT))
+
+#define FRIDA_TYPE_INJECTOR (frida_injector_get_type ())
+#define FRIDA_INJECTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_INJECTOR, FridaInjector))
+#define FRIDA_IS_INJECTOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_INJECTOR))
+
+#define FRIDA_TYPE_FILE_MONITOR (frida_file_monitor_get_type ())
+#define FRIDA_FILE_MONITOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), FRIDA_TYPE_FILE_MONITOR, FridaFileMonitor))
+#define FRIDA_IS_FILE_MONITOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), FRIDA_TYPE_FILE_MONITOR))
+
+#define FRIDA_ERROR (frida_error_quark ())
+
+G_END_DECLS
+
+#endif
